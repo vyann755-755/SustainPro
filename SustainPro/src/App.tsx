@@ -14,7 +14,6 @@ import { EmissionFactorsBulkUpload } from './components/admin/EmissionFactorsBul
 import { FormulasHierarchical as Formulas } from './components/admin/FormulasHierarchicalImproved';
 import { SubProducts } from './components/admin/SubProducts';
 import { Templates } from './components/admin/Templates';
-import { ReportTemplates } from './components/admin/ReportTemplates';
 import { Clients } from './components/admin/Clients';
 import { SystemConfiguration } from './components/admin/SystemConfiguration';
 import { SystemLogs } from './components/admin/SystemLogs';
@@ -80,7 +79,6 @@ const roleConfig = {
       { id: 'formulas', label: 'Master DB - Formulas' },
       { id: 'sub-products', label: 'Master DB - Sub-Products' },
       { id: 'activity-templates', label: 'Master DB - Activity Templates' },
-      { id: 'report-templates', label: 'Master DB - Report Templates' },
       { id: 'clients', label: 'Client Onboarding' },
       { id: 'system-config', label: 'System Config' },
       { id: 'system-logs', label: 'System Logs' }
@@ -200,8 +198,6 @@ export default function App() {
           return <SubProducts />;
         case 'activity-templates':
           return <Templates />;
-        case 'report-templates':
-          return <ReportTemplates />;
         case 'clients':
           return <Clients />;
         case 'system-config':
