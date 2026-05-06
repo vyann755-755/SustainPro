@@ -42,9 +42,18 @@ import {
   Clock
 } from 'lucide-react';
 import { toast } from 'sonner@2.0.3';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { supabase } from '../../utils/supabase/client';
 import { GRIReportTable } from './GRIReportTable';
 import { UploadedDataTableWithRemarks } from './UploadedDataTableWithRemarks';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { ChevronDown } from 'lucide-react';
 
 interface DataPoint {
   parameterId: string;
@@ -111,47 +120,90 @@ export function BusinessUnitDataView({
   const fetchUploadedData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-4f35b1fc/activity-data/${bcaProjectId}/${businessUnitId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${publicAnonKey}`
-          }
-        }
-      );
+      const { data, error } = await supabase
+        .from('activity_submissions')
+        .select('*')
+        .eq('project_id', bcaProjectId)
+        .eq('business_unit_id', businessUnitId)
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-      if (response.ok) {
-        const result = await response.json();
-        setUploadedData(result.data);
-      } else if (response.status === 404) {
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const dbData = data[0];
+        setUploadedData({
+          projectId: dbData.project_id,
+          businessUnitId: dbData.business_unit_id,
+          calculatedData: dbData.calculated_data,
+          uploadedBy: dbData.uploaded_by,
+          timestamp: dbData.created_at
+        });
+      } else {
         setUploadedData(null);
         toast.info('No data uploaded yet', {
           description: 'Customer user has not uploaded data for this business unit'
         });
-      } else {
-        const errorText = await response.text();
-        console.error('Server error response:', errorText);
-        throw new Error(`Server returned ${response.status}: ${errorText}`);
       }
     } catch (error) {
       console.error('Error fetching uploaded data:', error);
-      console.error('Request details:', {
-        projectId,
-        bcaProjectId,
-        businessUnitId,
-        url: `https://${projectId}.supabase.co/functions/v1/make-server-4f35b1fc/activity-data/${bcaProjectId}/${businessUnitId}`
-      });
+      setUploadedData(null);
       toast.error('Failed to load uploaded data', {
-        description: 'Unable to connect to server. Please ensure the backend is running.'
+        description: 'Unable to retrieve data from local cache or database.'
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const generateReport = () => {
-    setActiveTab('report');
-    toast.success('Report generated successfully!');
+  const generateReport = (type: 'GRI' | 'ISO') => {
+    if (!uploadedData) return;
+    
+    const doc = new jsPDF();
+    const title = type === 'GRI' ? `GRI Report - ${businessUnitName}` : `ISO Report - ${businessUnitName}`;
+    
+    doc.setFontSize(18);
+    doc.text(title, 14, 22);
+    doc.setFontSize(11);
+    doc.text(`Project: ${projectName}`, 14, 30);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 36);
+
+    const tableColumn = type === 'GRI' 
+      ? ["GRI Standard", "Disclosure", "Activity", "Scope", "Emissions (kgCO2e)"]
+      : ["ISO Category", "Activity", "Source", "Scope", "Emissions (kgCO2e)"];
+    
+    const tableRows: any[] = [];
+
+    uploadedData.calculatedData.forEach(activity => {
+      if (type === 'GRI') {
+        tableRows.push([
+          "GRI 305",
+          activity.griSubcategory,
+          activity.activityName,
+          `Scope ${activity.scope}`,
+          activity.calculatedValue.toFixed(2)
+        ]);
+      } else {
+        tableRows.push([
+          `Category ${activity.scope}`, // Approximating ISO category from scope
+          activity.activityName,
+          activity.griCategory,
+          `Scope ${activity.scope}`,
+          activity.calculatedValue.toFixed(2)
+        ]);
+      }
+    });
+
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 45,
+      theme: 'grid',
+      headStyles: { fillColor: [16, 185, 129] } // Emerald 500
+    });
+
+    doc.save(`${type}_Report_${businessUnitName}.pdf`);
+    toast.success(`${type} Report downloaded successfully!`);
   };
 
   // Group activities by GRI category
@@ -225,10 +277,22 @@ export function BusinessUnitDataView({
                       View variable parameters submitted by customer user
                     </CardDescription>
                   </div>
-                  <Button onClick={generateReport} className="bg-emerald-600 hover:bg-emerald-700">
-                    <BarChart3 className="h-4 w-4 mr-2" />
-                    Generate Report
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button className="bg-emerald-600 hover:bg-emerald-700">
+                        <Download className="h-4 w-4 mr-2" />
+                        Download PDF Report <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => generateReport('GRI')} className="cursor-pointer">
+                        Export as GRI Format
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => generateReport('ISO')} className="cursor-pointer">
+                        Export as ISO Format
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </CardHeader>
               <CardContent className="pt-6">

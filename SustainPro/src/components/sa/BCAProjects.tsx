@@ -1,4 +1,13 @@
 import React, { useState } from 'react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '../ui/dropdown-menu';
+import { Download } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Badge } from '../ui/badge';
@@ -212,6 +221,64 @@ export function BCAProjects() {
     year: new Date().getFullYear(),
     assignedBUs: [] as string[]
   });
+
+  const generateProjectReport = (project: BCAProject, type: 'GRI' | 'ISO') => {
+    const doc = new jsPDF('landscape');
+    const title = type === 'GRI' ? `GRI GHG Report - ${project.name}` : `ISO Template Report - ${project.name}`;
+    
+    doc.setFontSize(16);
+    doc.text(title, 14, 20);
+    
+    doc.setFontSize(10);
+    doc.text(`Reporting Year: ${project.year}`, 14, 30);
+    doc.text(`Total Assigned Business Units: ${project.assignedBUs.length}`, 14, 35);
+    
+    // Add summary
+    doc.text(`Total Emissions: ${project.totalEmissions || 0} tCO2e`, 14, 45);
+    doc.text(`Scope 1: ${project.scope1 || 0} tCO2e`, 14, 50);
+    doc.text(`Scope 2: ${project.scope2 || 0} tCO2e`, 14, 55);
+    doc.text(`Scope 3: ${project.scope3 || 0} tCO2e`, 14, 60);
+
+    if (type === 'GRI') {
+      // GRI format: BUs as columns
+      const buNames = project.assignedBUs.map(id => getBUName(id));
+      const head = [['Reporting category', 'Unit', 'Total Inventory', ...buNames]];
+      const body = [
+        ['Scope 1 - Direct Emissions', 'tCO2e', project.scope1?.toString() || '0', ...buNames.map(() => '-')],
+        ['Scope 2 - Indirect (Energy)', 'tCO2e', project.scope2?.toString() || '0', ...buNames.map(() => '-')],
+        ['Scope 3 - Value Chain', 'tCO2e', project.scope3?.toString() || '0', ...buNames.map(() => '-')]
+      ];
+      
+      autoTable(doc, {
+        startY: 70,
+        head: head,
+        body: body,
+        headStyles: { fillColor: [16, 185, 129] },
+      });
+    } else {
+      // ISO format: overall project only
+      const head = [['Category', 'Description', 'Total Emissions (tCO2e)']];
+      const body = [
+        ['1', 'Direct GHG emissions (Scope 1)', project.scope1?.toString() || '0'],
+        ['2', 'Indirect GHG emissions from imported energy (Scope 2)', project.scope2?.toString() || '0'],
+        ['3', 'Indirect GHG emissions from transportation (Scope 3)', '0'],
+        ['4', 'Indirect GHG emissions from products used (Scope 3)', '0'],
+        ['5', 'Indirect GHG emissions associated with services (Scope 3)', '0'],
+        ['6', 'Indirect GHG emissions from other sources (Scope 3)', '0'],
+        ['Total', 'Overall GHG Emissions', project.totalEmissions?.toString() || '0']
+      ];
+      
+      autoTable(doc, {
+        startY: 70,
+        head: head,
+        body: body,
+        headStyles: { fillColor: [59, 130, 246] },
+      });
+    }
+    
+    doc.save(`${type}_Report_${project.name.replace(/\s+/g, '_')}.pdf`);
+    toast.success(`${type} Report for ${project.name} downloaded successfully!`);
+  };
 
 
 
@@ -530,6 +597,27 @@ export function BCAProjects() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              className="text-emerald-700 border-emerald-200 hover:text-emerald-800 hover:bg-emerald-50 mr-2"
+                            >
+                              <FileText className="h-4 w-4 mr-2" />
+                              Generate Report
+                              <ChevronDown className="h-3 w-3 ml-2" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => generateProjectReport(project, 'GRI')} className="cursor-pointer">
+                              Generate GRI Report
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => generateProjectReport(project, 'ISO')} className="cursor-pointer">
+                              Generate ISO Report
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <Button 
                           variant="ghost" 
                           size="sm"

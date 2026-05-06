@@ -61,7 +61,7 @@ import { businessUnitsData, projectsData, type BusinessUnit as SharedBusinessUni
 import { allActivities } from '../sa/activitiesData';
 import { getFormulaByUID, getExpression, getVariableParameters, getEFParameters, type FormulaParameter } from '../../data/formulasData';
 import { calculateEmissions, type ParsedActivityData } from './ActivityDataUploadHelper';
-import { projectId, publicAnonKey } from '../../utils/supabase/info';
+import { supabase } from '../../utils/supabase/client';
 import { UploadedDataTableWithRemarks } from './UploadedDataTableWithRemarks';
 
 // Interfaces
@@ -347,56 +347,35 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
 
       setIsLoadingBackendData(true);
       try {
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-4f35b1fc/activity-data/${viewProjectId}/${viewBUId}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${publicAnonKey}`
-            }
-          }
-        );
-
-        if (response.ok) {
-          const result = await response.json();
-          if (result.data) {
-            // Transform backend data to match BusinessUnitDataSubmission interface
-            const bu = mockBusinessUnits.find(b => b.id === viewBUId);
-            const proj = mockProjects.find(p => p.id === viewProjectId);
-            
-            const submission: BusinessUnitDataSubmission = {
-              id: `backend-${viewBUId}`,
-              businessUnitId: result.data.businessUnitId,
-              businessUnitName: bu?.name || 'Unknown',
-              businessUnitUID: bu?.uid || '',
-              projectId: result.data.projectId,
-              projectName: proj?.name || 'Unknown',
-              calculatedData: result.data.calculatedData,
-              uploadedBy: result.data.uploadedBy,
-              uploadedAt: result.data.timestamp,
-              status: 'submitted',
-              fileName: 'Backend Data'
-            };
-            
-            setBackendSubmission(submission);
-          }
-        } else if (response.status === 404) {
-          // No data found in backend
-          setBackendSubmission(null);
+        const { data, error } = await supabase
+          .from('activity_submissions')
+          .select('*')
+          .eq('project_id', viewProjectId)
+          .eq('business_unit_id', viewBUId)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        
+        if (!error && data && data.length > 0) {
+          const dbData = data[0];
+          const submission: BusinessUnitDataSubmission = {
+            id: dbData.id,
+            projectId: dbData.project_id,
+            projectName: mockProjects.find(p => p.id === dbData.project_id)?.name || dbData.project_id,
+            businessUnitId: dbData.business_unit_id,
+            businessUnitName: mockBusinessUnits.find(bu => bu.id === dbData.business_unit_id)?.name || dbData.business_unit_id,
+            businessUnitUID: mockBusinessUnits.find(bu => bu.id === dbData.business_unit_id)?.uid || dbData.business_unit_id,
+            calculatedData: dbData.calculated_data,
+            uploadedBy: dbData.uploaded_by,
+            uploadedAt: dbData.created_at,
+            status: dbData.status,
+            fileName: dbData.file_name || 'Backend Data'
+          };
+          setBackendSubmission(submission);
         } else {
-          const errorText = await response.text();
-          console.error('Failed to fetch backend data:', errorText);
-          console.error('Response status:', response.status);
-          console.error('Request URL:', `https://${projectId}.supabase.co/functions/v1/make-server-4f35b1fc/activity-data/${viewProjectId}/${viewBUId}`);
           setBackendSubmission(null);
         }
       } catch (error) {
-        console.error('Error fetching backend data:', error);
-        console.error('Request details:', {
-          projectId,
-          viewProjectId,
-          viewBUId,
-          url: `https://${projectId}.supabase.co/functions/v1/make-server-4f35b1fc/activity-data/${viewProjectId}/${viewBUId}`
-        });
+        console.error('Error fetching data:', error);
         setBackendSubmission(null);
       } finally {
         setIsLoadingBackendData(false);
@@ -767,44 +746,28 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
       // Add to uploaded submissions
       setUploadedSubmissions(prev => [...prev, newSubmission]);
 
-      // Save to backend
       try {
-        const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-4f35b1fc/activity-data/submit`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${publicAnonKey}`
-          },
-          body: JSON.stringify({
-            projectId: selectedProject.id,
-            businessUnitId: selectedBU.id,
-            calculatedData,
-            uploadedBy: 'John Smith', // In real system, get from auth
-            timestamp: new Date().toISOString()
-          })
-        });
-
-        if (!response.ok) {
-          const error = await response.json();
-          console.error('Failed to save data to backend:', error);
-          console.error('Request URL:', `https://${projectId}.supabase.co/functions/v1/make-server-4f35b1fc/activity-data/submit`);
-          toast.error('Warning: Data saved locally but not to server', {
-            description: 'Please ensure the backend server is running.'
+        const { error } = await supabase
+          .from('activity_submissions')
+          .insert({
+            project_id: selectedProject.id,
+            business_unit_id: selectedBU.id,
+            uploaded_by: 'John Smith',
+            file_name: validationResults.fileName,
+            calculated_data: calculatedData
           });
+          
+        if (error) {
+           console.error('Supabase error:', error);
+           toast.error('Failed to save data to Supabase');
+           return;
         } else {
-          console.log('Data successfully saved to backend');
+           console.log('Data successfully saved to Supabase');
         }
       } catch (error) {
-        console.error('Error saving to backend:', error);
-        console.error('Request URL:', `https://${projectId}.supabase.co/functions/v1/make-server-4f35b1fc/activity-data/submit`);
-        console.error('Request payload:', {
-          projectId: selectedProject.id,
-          businessUnitId: selectedBU.id,
-          dataCount: calculatedData.length
-        });
-        toast.error('Warning: Data saved locally but not to server', {
-          description: 'Unable to connect to server. Please ensure the backend is running.'
-        });
+        console.error('Error saving data:', error);
+        toast.error('Failed to save data to Supabase');
+        return;
       }
 
       // Close dialog

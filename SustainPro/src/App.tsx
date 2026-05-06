@@ -24,6 +24,7 @@ import { CDBSubProducts } from './components/sa/CDBSubProducts';
 import { CDBProducts } from './components/sa/CDBProducts';
 import { CDBBusinessUnits } from './components/sa/CDBBusinessUnits';
 import { CDBActivities } from './components/sa/CDBActivities';
+import { CDBReportTemplates } from './components/sa/CDBReportTemplates';
 import { Projects } from './components/sa/Projects';
 import { BCAProjects } from './components/sa/BCAProjects';
 import { CustomerDashboard } from './components/customer/CustomerDashboard';
@@ -99,7 +100,8 @@ const roleConfig = {
           { id: 'cdb-sub-products', label: 'Sub-Products' },
           { id: 'cdb-products', label: 'Products' },
           { id: 'activities', label: 'Activities' },
-          { id: 'business-units', label: 'Business Units' }
+          { id: 'business-units', label: 'Business Units' },
+          { id: 'report-templates', label: 'Report Templates' }
         ]
       },
       { id: 'projects', label: 'GHG Projects' },
@@ -223,6 +225,8 @@ export default function App() {
           return <CDBBusinessUnits />;
         case 'activities':
           return <CDBActivities />;
+        case 'report-templates':
+          return <CDBReportTemplates />;
         case 'bca-projects':
           return <BCAProjects />;
         case 'lca-projects':
