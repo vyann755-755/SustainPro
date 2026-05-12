@@ -10,6 +10,10 @@
 
 import { allActivities, type ActivityDefinition } from '../components/sa/activitiesData';
 
+// Fixed UUIDs for Supabase integration
+export const PROJ_1_UUID = 'e0915ab8-8b06-4071-8b05-f9ad220fcb69';
+export const PROJ_2_UUID = 'd3202e21-0e19-450b-85bd-fce757b3bba1';
+
 // Helper function to get activity from centralized data by UID and add BU-specific context
 export const getActivity = (uid: string, country: string, year: number) => {
   const baseActivity = allActivities.find(a => a.uid === uid);
@@ -72,7 +76,7 @@ export const businessUnitsData: BusinessUnit[] = [
     uid: 'BU-MFG-2025-001',
     name: 'Manufacturing Plant - North America',
     description: 'Primary manufacturing facility for product lines A, B, and C',
-    projectId: 'proj-1',
+    projectId: PROJ_1_UUID,
     projectName: 'Q1 2025 Carbon Assessment',
     defaultYear: 2025,
     defaultCountry: 'United States',
@@ -95,7 +99,7 @@ export const businessUnitsData: BusinessUnit[] = [
     uid: 'BU-WHS-2025-002',
     name: 'Distribution Warehouse - East Coast',
     description: 'Regional distribution center serving East Coast markets',
-    projectId: 'proj-1',
+    projectId: PROJ_1_UUID,
     projectName: 'Q1 2025 Carbon Assessment',
     defaultYear: 2025,
     defaultCountry: 'United States',
@@ -116,7 +120,7 @@ export const businessUnitsData: BusinessUnit[] = [
     uid: 'BU-OFF-2025-003',
     name: 'Corporate Office - HQ',
     description: 'Corporate headquarters and administrative functions',
-    projectId: 'proj-1',
+    projectId: PROJ_1_UUID,
     projectName: 'Q1 2025 Carbon Assessment',
     defaultYear: 2025,
     defaultCountry: 'United States',
@@ -136,7 +140,7 @@ export const businessUnitsData: BusinessUnit[] = [
     uid: 'BU-RET-2025-004',
     name: 'Retail Operations - Southwest',
     description: 'Retail store operations in Southwest region',
-    projectId: 'proj-2',
+    projectId: PROJ_2_UUID,
     projectName: 'Annual Sustainability Report 2025',
     defaultYear: 2025,
     defaultCountry: 'United States',
@@ -155,7 +159,7 @@ export const businessUnitsData: BusinessUnit[] = [
     uid: 'BU-LOG-2025-005',
     name: 'Logistics Hub - Central',
     description: 'Central logistics and transportation coordination center',
-    projectId: 'proj-2',
+    projectId: PROJ_2_UUID,
     projectName: 'Annual Sustainability Report 2025',
     defaultYear: 2025,
     defaultCountry: 'United States',
@@ -174,7 +178,7 @@ export const businessUnitsData: BusinessUnit[] = [
     uid: 'BU-RND-2025-006',
     name: 'R&D Center - Innovation Campus',
     description: 'Research and development facility',
-    projectId: 'proj-2',
+    projectId: PROJ_2_UUID,
     projectName: 'Annual Sustainability Report 2025',
     defaultYear: 2025,
     defaultCountry: 'United States',
@@ -207,7 +211,7 @@ export interface Project {
 
 export const projectsData: Project[] = [
   {
-    id: 'proj-1',
+    id: PROJ_1_UUID,
     name: 'Q1 2025 Carbon Assessment',
     type: 'BCA',
     status: 'in-progress',
@@ -217,7 +221,7 @@ export const projectsData: Project[] = [
     createdBy: 'sa_user'
   },
   {
-    id: 'proj-2',
+    id: PROJ_2_UUID,
     name: 'Annual Sustainability Report 2025',
     type: 'BCA',
     status: 'in-progress',
