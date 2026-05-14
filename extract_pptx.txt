@@ -1,0 +1,46 @@
+Create a separate tab for ‘Reporting Template Builder”
+- Only can be built after generating GRI report of the respective BUs
+2. The below table will be auto created 
+XXX Report
+Example
+Free text
+Reporting Organization Name
+ xxx
+ABC Group
+Free text
+Person/Entity responsible for the report
+Xxx
+xxx
+Free text
+Business Unit
+Xxx
+BU1, BU2
+Drop down all BUs and allow 
+multiselection
+Reporting Year
+Xxx
+2024
+Drop down year
+3. Drop down option (Energy, Carbon, Water or Waste) 
+4. Create table with x number of line items 
+Numbering (Guide) 
+[editable text}
+Inventory
+Unit 
+[editable text}
+[editable text}
+(Main category)
+1000
+[editable text}
+[editable text}
+(Subcategory)
+1000
+[editable text}
+[editable text}
+1000
+[editable text}
+[editable text}
+5. Options to export report as Word, Excel or PDF 
+Dropdown to multiselect activities 
+How to include “+” and “-” in the operation 
+6. Options to save and name the template 

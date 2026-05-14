@@ -195,10 +195,7 @@ const mockActivityTemplates: ActivityTemplate[] = (() => {
   return Array.from(uniqueActivitiesMap.values());
 })();
 
-// Generate mockSubmissions from actual business units data
-// This ensures customer submissions match the activities assigned by SA
-const mockSubmissions: BusinessUnitDataSubmission[] = businessUnitsData
-  .slice(0, 3) // Only create submissions for first 3 BUs for demo purposes
+export const mockSubmissions: BusinessUnitDataSubmission[] = businessUnitsData
   .map((bu, index) => {
     // Generate calculated data for each activity in the business unit
     const calculatedData: CalculatedActivityData[] = bu.activities.map((activity, actIndex) => {

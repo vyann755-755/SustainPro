@@ -9,49 +9,48 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 const PROJ_1_UUID = 'e0915ab8-8b06-4071-8b05-f9ad220fcb69';
 const PROJ_2_UUID = 'd3202e21-0e19-450b-85bd-fce757b3bba1';
 
-const generateCalculatedData = (buName) => {
-  return [
-    {
-      activityUID: "ACT-001",
-      activityName: "Stationary Combustion",
-      griCategory: "GRI 305-1 Direct GHG emissions (Scope 1)",
-      griSubcategory: "305.1.1",
-      scope: "1",
-      calculatedValue: Math.floor(Math.random() * 50000) + 10000,
+const generateCalculatedData = (buId) => {
+  const buActivities = {
+    'bu-1': ['ACT-2024-0001', 'ACT-2024-0002', 'ACT-2024-0003', 'ACT-2024-0008', 'ACT-2024-0009', 'ACT-2024-0031', 'ACT-2024-0032'],
+    'bu-2': ['ACT-2024-0008', 'ACT-2024-0009', 'ACT-2024-0034', 'ACT-2024-0036', 'ACT-2024-0037'],
+    'bu-3': ['ACT-2024-0008', 'ACT-2024-0036', 'ACT-2024-0037', 'ACT-2024-0031'],
+    'bu-4': ['ACT-2024-0008', 'ACT-2024-0001', 'ACT-2024-0037'],
+    'bu-5': ['ACT-2024-0002', 'ACT-2024-0034', 'ACT-2024-0008'],
+    'bu-6': ['ACT-2024-0008', 'ACT-2024-0009', 'ACT-2024-0001', 'ACT-2024-0032']
+  };
+
+  const activityTemplates = {
+    'ACT-2024-0001': { name: "Stationary Combustion", griCat: "GRI 305-1 Direct GHG emissions (Scope 1)", subCat: "305.1.1", scope: "1", form: "Fuel Consumed * EF" },
+    'ACT-2024-0002': { name: "Mobile Combustion", griCat: "GRI 305-1 Direct GHG emissions (Scope 1)", subCat: "305.1.2", scope: "1", form: "Distance * EF" },
+    'ACT-2024-0003': { name: "Fugitive Emissions", griCat: "GRI 305-1 Direct GHG emissions (Scope 1)", subCat: "305.1.3", scope: "1", form: "Refrigerant Loss * GWP" },
+    'ACT-2024-0008': { name: "Electricity Location-based", griCat: "GRI 305-2 Indirect GHG emissions (Scope 2)", subCat: "305.2.1", scope: "2", form: "Electricity * Grid EF" },
+    'ACT-2024-0009': { name: "Electricity Market-based", griCat: "GRI 305-2 Indirect GHG emissions (Scope 2)", subCat: "305.2.2", scope: "2", form: "Electricity * Supplier EF" },
+    'ACT-2024-0031': { name: "Purchased goods", griCat: "GRI 305-3 Indirect GHG emissions (Scope 3)", subCat: "305.3.1", scope: "3", form: "Spend * Spend EF" },
+    'ACT-2024-0032': { name: "Capital goods", griCat: "GRI 305-3 Indirect GHG emissions (Scope 3)", subCat: "305.3.2", scope: "3", form: "Spend * Spend EF" },
+    'ACT-2024-0034': { name: "Upstream transportation", griCat: "GRI 305-3 Indirect GHG emissions (Scope 3)", subCat: "305.3.4", scope: "3", form: "Distance * Weight * EF" },
+    'ACT-2024-0036': { name: "Business travel", griCat: "GRI 305-3 Indirect GHG emissions (Scope 3)", subCat: "305.3.6", scope: "3", form: "Distance * EF" },
+    'ACT-2024-0037': { name: "Employee commuting", griCat: "GRI 305-3 Indirect GHG emissions (Scope 3)", subCat: "305.3.7", scope: "3", form: "Distance * EF" }
+  };
+
+  const activities = buActivities[buId] || buActivities['bu-1'];
+
+  return activities.map((actUid, idx) => {
+    const template = activityTemplates[actUid];
+    return {
+      activityUID: actUid,
+      activityName: template.name,
+      griCategory: template.griCat,
+      griSubcategory: template.subCat,
+      scope: template.scope,
+      calculatedValue: Math.floor(Math.random() * 50000) + 5000,
       unit: "kgCO2e",
-      formula: "Fuel Consumed * EF",
+      formula: template.form,
       inputParameters: [
-        { parameterId: "p1", parameterName: "Fuel Consumed", value: "5000", unit: "L", parameterType: "variable" },
-        { parameterId: "p2", parameterName: "Emission Factor", value: "2.5", unit: "kgCO2e/L", parameterType: "ef_value" }
+        { parameterId: `p1_${idx}`, parameterName: "Input Value", value: String(Math.floor(Math.random() * 10000)), unit: "units", parameterType: "variable" },
+        { parameterId: `p2_${idx}`, parameterName: "Emission Factor", value: (Math.random() * 2 + 0.1).toFixed(4), unit: "kgCO2e/unit", parameterType: "ef_value" }
       ]
-    },
-    {
-      activityUID: "ACT-002",
-      activityName: "Mobile Combustion",
-      griCategory: "GRI 305-1 Direct GHG emissions (Scope 1)",
-      griSubcategory: "305.1.2",
-      scope: "1",
-      calculatedValue: Math.floor(Math.random() * 30000) + 5000,
-      unit: "kgCO2e",
-      formula: "Distance * EF",
-      inputParameters: [
-        { parameterId: "p1", parameterName: "Distance Travelled", value: "15000", unit: "km", parameterType: "variable" }
-      ]
-    },
-    {
-      activityUID: "ACT-008",
-      activityName: "Purchased Electricity",
-      griCategory: "GRI 305-2 Indirect GHG emissions (Scope 2)",
-      griSubcategory: "305.2.1",
-      scope: "2",
-      calculatedValue: Math.floor(Math.random() * 80000) + 20000,
-      unit: "kgCO2e",
-      formula: "Electricity Consumed * Grid EF",
-      inputParameters: [
-        { parameterId: "p1", parameterName: "Electricity Consumed", value: "120000", unit: "kWh", parameterType: "variable" }
-      ]
-    }
-  ];
+    };
+  });
 };
 
 const seedData = async () => {

@@ -45,6 +45,7 @@ import { toast } from 'sonner@2.0.3';
 import { supabase } from '../../utils/supabase/client';
 import { GRIReportTable } from './GRIReportTable';
 import { UploadedDataTableWithRemarks } from './UploadedDataTableWithRemarks';
+import { mockSubmissions } from '../customer/ActivityData';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
@@ -140,17 +141,47 @@ export function BusinessUnitDataView({
           timestamp: dbData.created_at
         });
       } else {
-        setUploadedData(null);
-        toast.info('No data uploaded yet', {
-          description: 'Customer user has not uploaded data for this business unit'
-        });
+        // Fallback to mock data if no data in Supabase
+        const mockSubmission = mockSubmissions.find(sub => sub.projectId === bcaProjectId && sub.businessUnitId === businessUnitId);
+        if (mockSubmission) {
+          setUploadedData({
+            projectId: mockSubmission.projectId,
+            businessUnitId: mockSubmission.businessUnitId,
+            calculatedData: mockSubmission.calculatedData,
+            uploadedBy: mockSubmission.uploadedBy,
+            timestamp: mockSubmission.uploadedAt
+          });
+          toast.info('Using sample data', {
+            description: 'No database records found, showing mock data instead.'
+          });
+        } else {
+          setUploadedData(null);
+          toast.info('No data uploaded yet', {
+            description: 'Customer user has not uploaded data for this business unit'
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching uploaded data:', error);
-      setUploadedData(null);
-      toast.error('Failed to load uploaded data', {
-        description: 'Unable to retrieve data from local cache or database.'
-      });
+      // Fallback to mock data on error
+      const mockSubmission = mockSubmissions.find(sub => sub.projectId === bcaProjectId && sub.businessUnitId === businessUnitId);
+      if (mockSubmission) {
+        setUploadedData({
+          projectId: mockSubmission.projectId,
+          businessUnitId: mockSubmission.businessUnitId,
+          calculatedData: mockSubmission.calculatedData,
+          uploadedBy: mockSubmission.uploadedBy,
+          timestamp: mockSubmission.uploadedAt
+        });
+        toast.info('Using sample data', {
+          description: 'Database connection failed, showing mock data instead.'
+        });
+      } else {
+        setUploadedData(null);
+        toast.error('Failed to load uploaded data', {
+          description: 'Unable to retrieve data from local cache or database.'
+        });
+      }
     } finally {
       setLoading(false);
     }
