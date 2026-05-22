@@ -100,6 +100,8 @@ import {
 } from 'recharts';
 import { mockBusinessUnits } from './CDBBusinessUnits';
 import { PROJ_1_UUID, PROJ_2_UUID } from '../../data/businessUnitsData';
+import { supabase } from '../../utils/supabase/client';
+import { generateGRIPdf, generateISOPdf, type BUData } from './reportPDF';
 import { BusinessUnitDataView } from './BusinessUnitDataView';
 
 interface BCAProject {
@@ -223,62 +225,53 @@ export function BCAProjects() {
     assignedBUs: [] as string[]
   });
 
-  const generateProjectReport = (project: BCAProject, type: 'GRI' | 'ISO') => {
-    const doc = new jsPDF('landscape');
-    const title = type === 'GRI' ? `GRI GHG Report - ${project.name}` : `ISO Template Report - ${project.name}`;
-    
-    doc.setFontSize(16);
-    doc.text(title, 14, 20);
-    
-    doc.setFontSize(10);
-    doc.text(`Reporting Year: ${project.year}`, 14, 30);
-    doc.text(`Total Assigned Business Units: ${project.assignedBUs.length}`, 14, 35);
-    
-    // Add summary
-    doc.text(`Total Emissions: ${project.totalEmissions || 0} tCO2e`, 14, 45);
-    doc.text(`Scope 1: ${project.scope1 || 0} tCO2e`, 14, 50);
-    doc.text(`Scope 2: ${project.scope2 || 0} tCO2e`, 14, 55);
-    doc.text(`Scope 3: ${project.scope3 || 0} tCO2e`, 14, 60);
+  const generateProjectReport = async (project: BCAProject, type: 'GRI' | 'ISO') => {
+    try {
+      toast.info(`Generating ${type} report for ${project.name}…`);
 
-    if (type === 'GRI') {
-      // GRI format: BUs as columns
-      const buNames = project.assignedBUs.map(id => getBUName(id));
-      const head = [['Reporting category', 'Unit', 'Total Inventory', ...buNames]];
-      const body = [
-        ['Scope 1 - Direct Emissions', 'tCO2e', project.scope1?.toString() || '0', ...buNames.map(() => '-')],
-        ['Scope 2 - Indirect (Energy)', 'tCO2e', project.scope2?.toString() || '0', ...buNames.map(() => '-')],
-        ['Scope 3 - Value Chain', 'tCO2e', project.scope3?.toString() || '0', ...buNames.map(() => '-')]
-      ];
-      
-      autoTable(doc, {
-        startY: 70,
-        head: head,
-        body: body,
-        headStyles: { fillColor: [16, 185, 129] },
-      });
-    } else {
-      // ISO format: overall project only
-      const head = [['Category', 'Description', 'Total Emissions (tCO2e)']];
-      const body = [
-        ['1', 'Direct GHG emissions (Scope 1)', project.scope1?.toString() || '0'],
-        ['2', 'Indirect GHG emissions from imported energy (Scope 2)', project.scope2?.toString() || '0'],
-        ['3', 'Indirect GHG emissions from transportation (Scope 3)', '0'],
-        ['4', 'Indirect GHG emissions from products used (Scope 3)', '0'],
-        ['5', 'Indirect GHG emissions associated with services (Scope 3)', '0'],
-        ['6', 'Indirect GHG emissions from other sources (Scope 3)', '0'],
-        ['Total', 'Overall GHG Emissions', project.totalEmissions?.toString() || '0']
-      ];
-      
-      autoTable(doc, {
-        startY: 70,
-        head: head,
-        body: body,
-        headStyles: { fillColor: [59, 130, 246] },
+      // Fetch latest activity_submission for every assigned BU in parallel
+      const buData: BUData[] = await Promise.all(
+        project.assignedBUs.map(async (buId) => {
+          const { data, error } = await supabase
+            .from('activity_submissions')
+            .select('*')
+            .eq('project_id', project.id)
+            .eq('business_unit_id', buId)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+          if (error) console.error(`BU ${buId} fetch error:`, error);
+
+          const buMeta = mockBusinessUnits.find((b) => b.id === buId);
+          return {
+            businessUnitId: buId,
+            businessUnitName: buMeta?.name || buId,
+            calculatedData: data && data.length > 0 ? data[0].calculated_data || [] : [],
+          };
+        })
+      );
+
+      if (type === 'GRI') {
+        generateGRIPdf({
+          projectName: project.name,
+          reportingYear: project.year,
+          buData,
+        });
+      } else {
+        generateISOPdf({
+          projectName: project.name,
+          reportingYear: project.year,
+          buData,
+        });
+      }
+
+      toast.success(`${type} Report for ${project.name} downloaded successfully!`);
+    } catch (err) {
+      console.error('Error generating project report:', err);
+      toast.error(`Failed to generate ${type} report`, {
+        description: 'Please try again or check the console for details.',
       });
     }
-    
-    doc.save(`${type}_Report_${project.name.replace(/\s+/g, '_')}.pdf`);
-    toast.success(`${type} Report for ${project.name} downloaded successfully!`);
   };
 
 

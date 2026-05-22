@@ -47,6 +47,8 @@ import { GRIReportTable } from './GRIReportTable';
 import { UploadedDataTableWithRemarks } from './UploadedDataTableWithRemarks';
 import { mockSubmissions } from '../customer/ActivityData';
 import jsPDF from 'jspdf';
+import { generateGRIPdf, generateISOPdf } from './reportPDF';
+import { mockBusinessUnits } from './CDBBusinessUnits';
 import autoTable from 'jspdf-autotable';
 import {
   DropdownMenu,
@@ -188,52 +190,22 @@ export function BusinessUnitDataView({
   };
 
   const generateReport = (type: 'GRI' | 'ISO') => {
-    if (!uploadedData) return;
-    
-    const doc = new jsPDF();
-    const title = type === 'GRI' ? `GRI Report - ${businessUnitName}` : `ISO Report - ${businessUnitName}`;
-    
-    doc.setFontSize(18);
-    doc.text(title, 14, 22);
-    doc.setFontSize(11);
-    doc.text(`Project: ${projectName}`, 14, 30);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 14, 36);
-
-    const tableColumn = type === 'GRI' 
-      ? ["GRI Standard", "Disclosure", "Activity", "Scope", "Emissions (kgCO2e)"]
-      : ["ISO Category", "Activity", "Source", "Scope", "Emissions (kgCO2e)"];
-    
-    const tableRows: any[] = [];
-
-    uploadedData.calculatedData.forEach(activity => {
-      if (type === 'GRI') {
-        tableRows.push([
-          "GRI 305",
-          activity.griSubcategory,
-          activity.activityName,
-          `Scope ${activity.scope}`,
-          activity.calculatedValue.toFixed(2)
-        ]);
-      } else {
-        tableRows.push([
-          `Category ${activity.scope}`, // Approximating ISO category from scope
-          activity.activityName,
-          activity.griCategory,
-          `Scope ${activity.scope}`,
-          activity.calculatedValue.toFixed(2)
-        ]);
-      }
-    });
-
-    autoTable(doc, {
-      head: [tableColumn],
-      body: tableRows,
-      startY: 45,
-      theme: 'grid',
-      headStyles: { fillColor: [16, 185, 129] } // Emerald 500
-    });
-
-    doc.save(`${type}_Report_${businessUnitName}.pdf`);
+    if (!uploadedData) {
+      toast.error('No data to generate report');
+      return;
+    }
+    const args = {
+      projectName,
+      reportingYear: 2025,
+      singleBUName: businessUnitName,
+      buData: [{
+        businessUnitId,
+        businessUnitName,
+        calculatedData: uploadedData.calculatedData,
+      }],
+    };
+    if (type === 'GRI') generateGRIPdf(args);
+    else generateISOPdf(args);
     toast.success(`${type} Report downloaded successfully!`);
   };
 

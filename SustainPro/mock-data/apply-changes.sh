@@ -34,35 +34,43 @@ echo "📦  Applying SustainPro FY2025 mock-data package..."
 echo
 
 # --- 1) New seed file -------------------------------------------------------
-echo "1/5  Copying seed file → src/data/seedActivitySubmissions.ts"
+echo "1/10 Copying seed file → src/data/seedActivitySubmissions.ts"
 cp "$SCRIPT_DIR/seedActivitySubmissions.ts" "src/data/seedActivitySubmissions.ts"
 
 # --- 2) Supabase SQL --------------------------------------------------------
-echo "2/5  Copying Supabase seed → seed-supabase.sql (repo root)"
+echo "2/10 Copying Supabase seed → seed-supabase.sql (repo root)"
 cp "$SCRIPT_DIR/seed-supabase.sql" "seed-supabase.sql"
 
 # --- 3) formulasData.ts -----------------------------------------------------
-echo "3/5  Patching src/data/formulasData.ts (adds 3 dedicated formulas)"
+echo "3/10 Patching src/data/formulasData.ts (adds 3 dedicated formulas)"
 cp "$SCRIPT_DIR/patched/src/data/formulasData.ts" "src/data/formulasData.ts"
 
 # --- 4) activitiesData.ts ---------------------------------------------------
-echo "4/8  Patching src/components/sa/activitiesData.ts (re-binds 3 activities)"
+echo "4/10 Patching src/components/sa/activitiesData.ts (re-binds 3 activities)"
 cp "$SCRIPT_DIR/patched/src/components/sa/activitiesData.ts" "src/components/sa/activitiesData.ts"
 
 # --- 5) BCAProjects.tsx — switch hardcoded project IDs to UUIDs + 2025 -----
-echo "5/8  Patching src/components/sa/BCAProjects.tsx (project IDs → UUIDs, year 2025)"
+echo "5/10 Patching src/components/sa/BCAProjects.tsx (project IDs → UUIDs, year 2025, Supabase-backed PDF)"
 cp "$SCRIPT_DIR/patched/src/components/sa/BCAProjects.tsx" "src/components/sa/BCAProjects.tsx"
 
 # --- 6) GRIReportTable.tsx — direct Supabase query (no Edge Function) ------
-echo "6/8  Patching src/components/sa/GRIReportTable.tsx (direct Supabase query)"
+echo "6/10 Patching src/components/sa/GRIReportTable.tsx (direct Supabase query)"
 cp "$SCRIPT_DIR/patched/src/components/sa/GRIReportTable.tsx" "src/components/sa/GRIReportTable.tsx"
 
-# --- 7) BusinessUnitDataView.tsx — reporting year 2024 → 2025 --------------
-echo "7/8  Patching src/components/sa/BusinessUnitDataView.tsx (reportingYear → 2025)"
+# --- 7) BusinessUnitDataView.tsx — reporting year 2025 + template PDFs ----
+echo "7/10 Patching src/components/sa/BusinessUnitDataView.tsx (template-based PDFs)"
 cp "$SCRIPT_DIR/patched/src/components/sa/BusinessUnitDataView.tsx" "src/components/sa/BusinessUnitDataView.tsx"
 
-# --- 8) ActivityData.tsx — two surgical edits via node ---------------------
-echo "8/8  Patching src/components/customer/ActivityData.tsx"
+# --- 8) reportTemplates.ts — NEW shared GRI/ISO row structure -------------
+echo "8/10 Adding NEW src/data/reportTemplates.ts (shared GRI/ISO row templates)"
+cp "$SCRIPT_DIR/patched/src/data/reportTemplates.ts" "src/data/reportTemplates.ts"
+
+# --- 9) reportPDF.ts — NEW shared GRI/ISO PDF generators -----------------
+echo "9/10 Adding NEW src/components/sa/reportPDF.ts (shared PDF generators)"
+cp "$SCRIPT_DIR/patched/src/components/sa/reportPDF.ts" "src/components/sa/reportPDF.ts"
+
+# --- 10) ActivityData.tsx — two surgical edits via node -------------------
+echo "10/10 Patching src/components/customer/ActivityData.tsx"
 
 node - <<'NODE'
 const fs = require('fs');
