@@ -1,26 +1,26 @@
 /**
  * SustainPro — Report PDF Generators
  * ===================================
- * Shared helpers that produce the GRI and ISO PDFs from a Supabase
- * `activity_submissions` aggregate. Used by:
- *   - BCAProjects.tsx · project-level "Generate GRI/ISO Report" action
- *   - BusinessUnitDataView.tsx · per-BU "Export GRI/ISO" buttons (future)
- *
- * Both PDFs mirror the structure of `Sample GRI.xlsx` and `Sample ISO.xlsx`
- * row-for-row: every template row is rendered, with "—" where there is no data.
+ *  generateGRIPdf  → full GHG (305) + Energy (302) + Water (303) + Waste (306)
+ *                   sections, each on its own page. Per-BU columns + Total.
+ *  generateISOPdf  → ISO 14064-1 Cat 1–6, project-level aggregate. Per-BU
+ *                   when `singleBUName` is set.
  */
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
   griGHGTemplate,
+  griEnergyTemplate,
+  griWaterTemplate,
+  griWasteTemplate,
   isoTemplate,
   formatReportValue,
   getGRIValue,
   sumGRIValues,
+  type GRIRow,
 } from '../../data/reportTemplates';
 
-// Declare autoTable so TS is happy.
 declare module 'jspdf' {
   interface jsPDF {
     autoTable: (options: any) => jsPDF;
@@ -37,119 +37,125 @@ export interface BUData {
 export interface ReportArgs {
   projectName: string;
   reportingYear: number;
-  /** When undefined → project-level (all BUs); when set → single-BU report */
+  /** Pass when generating a single-BU report (omitted for project-level). */
   singleBUName?: string;
-  /** All BU data to include. For single-BU report pass an array of length 1. */
+  /** All BU data to include. Length 1 for single-BU. */
   buData: BUData[];
 }
 
 // ============================================================================
-// GRI PDF — landscape, BUs as column-pairs (Unit / Inventory) + Total column
+// GRI PDF — multi-section: GHG (305) → Energy (302) → Water (303) → Waste (306)
 // ============================================================================
 export function generateGRIPdf(args: ReportArgs): void {
   const { projectName, reportingYear, singleBUName, buData } = args;
   const doc = new jsPDF('landscape');
 
-  // ── Header ────────────────────────────────────────────────────────────────
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('GRI GHG Report', 14, 16);
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Reporting Organisation Name: ${projectName}`, 14, 24);
-  doc.text(`Reporting Year: ${reportingYear}`, 14, 30);
-  if (singleBUName) {
-    doc.text(`Business Unit: ${singleBUName}`, 14, 36);
-  }
-
-  // ── Table ─────────────────────────────────────────────────────────────────
-  // Header rows mirror Excel: row 7 BU names (colspan 2), row 8 Unit / Inventory.
-  const buCount = buData.length;
-
-  const headerRow1: any[] = [
-    { content: 'Cat.', rowSpan: 2 },
-    { content: 'Reporting category', rowSpan: 2 },
+  const sections: Array<{ title: string; unit: string; template: GRIRow[] }> = [
+    { title: 'GRI GHG Report',                template: griGHGTemplate,    unit: 'kgCO2e' },
+    { title: 'Energy Consumption Report',     template: griEnergyTemplate, unit: 'GJ' },
+    { title: 'Water Consumption Report',      template: griWaterTemplate,  unit: 'ML' },
+    { title: 'Waste Report',                  template: griWasteTemplate,  unit: 'ton' },
   ];
-  buData.forEach((bu) => {
-    headerRow1.push({ content: `${bu.businessUnitName} (BU)`, colSpan: 2, styles: { halign: 'center' } });
-  });
-  headerRow1.push({ content: 'Total', colSpan: 2, styles: { halign: 'center' } });
 
-  const headerRow2: any[] = [];
-  buData.forEach(() => {
+  sections.forEach((section, idx) => {
+    if (idx > 0) doc.addPage();
+
+    // Header on every page
+    doc.setFontSize(15);
+    doc.setFont('helvetica', 'bold');
+    doc.text(section.title, 14, 16);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Reporting Organisation Name: ${projectName}`, 14, 22);
+    doc.text(`Reporting Year: ${reportingYear}`, 14, 28);
+    if (singleBUName) {
+      doc.text(`Business Unit: ${singleBUName}`, 14, 34);
+    }
+
+    // ── Table header (two rows, like the Excel) ──
+    const headerRow1: any[] = [
+      { content: 'Cat.', rowSpan: 2 },
+      { content: 'Reporting category', rowSpan: 2 },
+    ];
+    buData.forEach((bu) => {
+      headerRow1.push({ content: `${bu.businessUnitName} (BU)`, colSpan: 2, styles: { halign: 'center' } });
+    });
+    headerRow1.push({ content: 'Total', colSpan: 2, styles: { halign: 'center' } });
+
+    const headerRow2: any[] = [];
+    buData.forEach(() => {
+      headerRow2.push({ content: 'Unit', styles: { halign: 'center' } });
+      headerRow2.push({ content: 'Inventory', styles: { halign: 'center' } });
+    });
     headerRow2.push({ content: 'Unit', styles: { halign: 'center' } });
     headerRow2.push({ content: 'Inventory', styles: { halign: 'center' } });
-  });
-  headerRow2.push({ content: 'Unit', styles: { halign: 'center' } });
-  headerRow2.push({ content: 'Inventory', styles: { halign: 'center' } });
 
-  // Body rows
-  const body: any[] = [];
+    // ── Body ──
+    const body: any[] = [];
+    const colSpanAll = 2 + buData.length * 2 + 2;
 
-  griGHGTemplate.forEach((row) => {
-    if (row.type === 'scope-header') {
-      // Scope-header row spans the full width
-      body.push([
-        {
+    section.template.forEach((row) => {
+      if (row.type === 'scope-header') {
+        body.push([{
           content: row.name,
-          colSpan: 2 + buCount * 2 + 2,
+          colSpan: colSpanAll,
           styles: { fillColor: [209, 250, 229], textColor: [6, 78, 59], fontStyle: 'bold' },
-        },
-      ]);
-    } else {
-      // Category data row
-      const cells: any[] = [
-        { content: row.category, styles: { fontSize: 7, halign: 'center' } },
-        { content: row.name },
-      ];
+        }]);
+      } else if (row.type === 'sub-header') {
+        body.push([{
+          content: row.name,
+          colSpan: colSpanAll,
+          styles: { fillColor: [240, 253, 244], textColor: [22, 101, 52], fontStyle: 'bold' },
+        }]);
+      } else {
+        // category data row
+        const cells: any[] = [
+          { content: row.category ?? '', styles: { fontSize: 7, halign: 'center' } },
+          { content: row.name },
+        ];
+        let total = 0;
+        buData.forEach((bu) => {
+          const v = row.category ? getGRIValue(bu.calculatedData, row.category) : 0;
+          total += v;
+          cells.push({ content: section.unit, styles: { halign: 'center', fontSize: 7 } });
+          cells.push({ content: formatReportValue(v), styles: { halign: 'right' } });
+        });
+        cells.push({ content: section.unit, styles: { halign: 'center', fontSize: 7 } });
+        cells.push({
+          content: formatReportValue(total),
+          styles: { halign: 'right', fontStyle: 'bold', fillColor: [254, 243, 199] },
+        });
+        body.push(cells);
+      }
+    });
 
-      let total = 0;
-      buData.forEach((bu) => {
-        const v = getGRIValue(bu.calculatedData, row.category!);
-        total += v;
-        cells.push({ content: 'kgCO2e', styles: { halign: 'center', fontSize: 7 } });
-        cells.push({ content: formatReportValue(v), styles: { halign: 'right' } });
-      });
-      cells.push({ content: 'kgCO2e', styles: { halign: 'center', fontSize: 7 } });
-      cells.push({
-        content: formatReportValue(total),
-        styles: { halign: 'right', fontStyle: 'bold', fillColor: [254, 243, 199] },
-      });
-      body.push(cells);
-    }
+    autoTable(doc, {
+      startY: singleBUName ? 40 : 34,
+      head: [headerRow1, headerRow2],
+      body,
+      theme: 'grid',
+      styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.1 },
+      headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' },
+      columnStyles: {
+        0: { cellWidth: 18, fontSize: 7 },
+        1: { cellWidth: 'auto', minCellWidth: 70 },
+      },
+      margin: { left: 8, right: 8 },
+    });
   });
 
-  autoTable(doc, {
-    startY: singleBUName ? 42 : 38,
-    head: [headerRow1, headerRow2],
-    body,
-    theme: 'grid',
-    styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.1 },
-    headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' },
-    columnStyles: { 0: { cellWidth: 18, fontSize: 7 }, 1: { cellWidth: 'auto', minCellWidth: 60 } },
-    margin: { left: 8, right: 8 },
-  });
-
-  // Filename
-  const fnSuffix = singleBUName
-    ? `${singleBUName.replace(/\s+/g, '_')}`
-    : 'All_BUs';
+  const fnSuffix = singleBUName ? singleBUName.replace(/\s+/g, '_') : 'All_BUs';
   doc.save(`GRI_Report_${projectName.replace(/\s+/g, '_')}_${fnSuffix}_${reportingYear}.pdf`);
 }
 
 // ============================================================================
-// ISO PDF — portrait, GHG type columns (Total / CO2 / CH4 / N2O / HFCs / PFCs / SF6 / NF3)
-// Note: We only have aggregate kgCO2e in `activity_submissions` today — so the
-//        Total GWP column is populated and the per-gas columns are blank, as per
-//        the template's "[to be input]" convention. When per-gas breakdown is
-//        available later, just extend the data fetch.
+// ISO PDF — Cat 1–6 with per-GHG columns
 // ============================================================================
 export function generateISOPdf(args: ReportArgs): void {
   const { projectName, reportingYear, singleBUName, buData } = args;
   const doc = new jsPDF();
 
-  // ── Header ────────────────────────────────────────────────────────────────
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
   doc.text('ISO 14064-1 GHG Report', 14, 16);
@@ -164,11 +170,10 @@ export function generateISOPdf(args: ReportArgs): void {
     14, 42,
   );
 
-  // ── Build aggregated calculated_data across all BUs (ISO is project-level) ─
+  // Aggregate calculated_data across all BUs
   const aggregate: any[] = [];
   buData.forEach((bu) => (bu.calculatedData || []).forEach((d) => aggregate.push(d)));
 
-  // ── Header rows ───────────────────────────────────────────────────────────
   const headerRow1 = [
     { content: '#', rowSpan: 2, styles: { halign: 'center' } },
     { content: 'Emissions', rowSpan: 2 },
@@ -186,10 +191,7 @@ export function generateISOPdf(args: ReportArgs): void {
     { content: 'NF3',                     styles: { halign: 'center', fontSize: 7 } },
   ];
 
-  // ── Body — mirror the ISO template row-by-row ─────────────────────────────
   const body: any[] = [];
-
-  // Pre-compute Cat 1-6 totals to fill into "Category X" header rows
   const catTotals: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0, '6': 0 };
 
   isoTemplate.forEach((row) => {
@@ -220,6 +222,7 @@ export function generateISOPdf(args: ReportArgs): void {
     if (row.type === 'category-header') {
       const total = row.griCategoryUIDs ? sumGRIValues(aggregate, row.griCategoryUIDs) : 0;
       if (row.number) catTotals[row.number] += total;
+      else if (row.name.startsWith('Category 6')) catTotals['6'] += total;
       body.push([
         { content: row.number ?? '', styles: { fontStyle: 'bold', fillColor: [209, 250, 229] } },
         { content: row.name,         styles: { fontStyle: 'bold', fillColor: [209, 250, 229] } },
@@ -261,9 +264,6 @@ export function generateISOPdf(args: ReportArgs): void {
     margin: { left: 8, right: 8 },
   });
 
-  // Filename
-  const fnSuffix = singleBUName
-    ? `${singleBUName.replace(/\s+/g, '_')}`
-    : 'All_BUs';
+  const fnSuffix = singleBUName ? singleBUName.replace(/\s+/g, '_') : 'All_BUs';
   doc.save(`ISO_Report_${projectName.replace(/\s+/g, '_')}_${fnSuffix}_${reportingYear}.pdf`);
 }

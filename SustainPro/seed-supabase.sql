@@ -253,6 +253,123 @@ VALUES (
         {"parameterId":"param_capex_amount","parameterName":"capex_amount","value":"212850","unit":"USD","parameterType":"variable"},
         {"parameterId":"param_capex_ef","parameterName":"capex_ef","value":"0.42","unit":"kg CO2e/USD","parameterType":"ef_value"}
       ]
+    },
+    {
+      "activityUID": "ACT-MOCK-302-1-1",
+      "activityName": "Table-1 : Non-renewable fuel consumed : Stationary Combustion",
+      "griCategory": "GRI 302-1 Energy Consumption within the organization",
+      "griSubcategory": "302.1.1",
+      "scope": "1",
+      "calculatedValue": 12500,
+      "unit": "GJ",
+      "formula": "Energy meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"12500","unit":"GJ","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-302-1-2",
+      "activityName": "Table-2 : Non-renewable fuel consumed : Mobile Combustion",
+      "griCategory": "GRI 302-1 Energy Consumption within the organization",
+      "griSubcategory": "302.1.2",
+      "scope": "1",
+      "calculatedValue": 850,
+      "unit": "GJ",
+      "formula": "Energy meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"850","unit":"GJ","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-302-1-4",
+      "activityName": "Table-4 : Electricity Purchased",
+      "griCategory": "GRI 302-1 Energy Consumption within the organization",
+      "griSubcategory": "302.1.4",
+      "scope": "1",
+      "calculatedValue": 15300,
+      "unit": "GJ",
+      "formula": "Energy meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"15300","unit":"GJ","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-303-3-1",
+      "activityName": "Table-1 : Water withdrawal - Fresh Water : TDS<= 1000mg/l",
+      "griCategory": "GRI 303-3 Water withdrawal",
+      "griSubcategory": "303.3.1",
+      "scope": "1",
+      "calculatedValue": 125.5,
+      "unit": "ML",
+      "formula": "Water meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"125.5","unit":"ML","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-303-4-5",
+      "activityName": "Table-5 : Water discharge - Fresh Water : TDS<= 1000mg/l",
+      "griCategory": "GRI 303-4 Water discharge",
+      "griSubcategory": "303.4.5",
+      "scope": "1",
+      "calculatedValue": 89.3,
+      "unit": "ML",
+      "formula": "Water meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"89.3","unit":"ML","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-303-5-1",
+      "activityName": "All areas",
+      "griCategory": "GRI 303-5 Water consumption",
+      "griSubcategory": "303.5.1",
+      "scope": "1",
+      "calculatedValue": 36.2,
+      "unit": "ML",
+      "formula": "Water meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"36.2","unit":"ML","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-306-4-2",
+      "activityName": "Table-2 : Recycling (Hazardous Onsite)",
+      "griCategory": "GRI 306-4 Waste diverted from disposal",
+      "griSubcategory": "306.4.2",
+      "scope": "1",
+      "calculatedValue": 42.5,
+      "unit": "ton",
+      "formula": "Waste log",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"42.5","unit":"ton","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-306-4-8",
+      "activityName": "Table-8 : Recycling (Non-Hazardous Onsite)",
+      "griCategory": "GRI 306-4 Waste diverted from disposal",
+      "griSubcategory": "306.4.8",
+      "scope": "1",
+      "calculatedValue": 187,
+      "unit": "ton",
+      "formula": "Waste log",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"187","unit":"ton","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-306-5-15",
+      "activityName": "Table-15 : Landfilling (Hazardous Onsite)",
+      "griCategory": "GRI 306-5 Waste directed to disposal",
+      "griSubcategory": "306.5.15",
+      "scope": "1",
+      "calculatedValue": 8.4,
+      "unit": "ton",
+      "formula": "Waste log",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"8.4","unit":"ton","parameterType":"variable"}
+      ]
     }
   ]'::jsonb
 );
@@ -336,6 +453,71 @@ VALUES (
         {"parameterId":"param_distance","parameterName":"distance","value":"98400","unit":"km","parameterType":"variable"},
         {"parameterId":"param_vehicle_ef","parameterName":"vehicle_ef","value":"0.192","unit":"kg CO2e/km","parameterType":"ef_value"}
       ]
+    },
+    {
+      "activityUID": "ACT-MOCK-302-1-4",
+      "activityName": "Table-4 : Electricity Purchased",
+      "griCategory": "GRI 302-1 Energy Consumption within the organization",
+      "griSubcategory": "302.1.4",
+      "scope": "1",
+      "calculatedValue": 5400,
+      "unit": "GJ",
+      "formula": "Energy meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"5400","unit":"GJ","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-303-3-1",
+      "activityName": "Table-1 : Water withdrawal - Fresh Water : TDS<= 1000mg/l",
+      "griCategory": "GRI 303-3 Water withdrawal",
+      "griSubcategory": "303.3.1",
+      "scope": "1",
+      "calculatedValue": 12.8,
+      "unit": "ML",
+      "formula": "Water meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"12.8","unit":"ML","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-303-4-5",
+      "activityName": "Table-5 : Water discharge - Fresh Water : TDS<= 1000mg/l",
+      "griCategory": "GRI 303-4 Water discharge",
+      "griSubcategory": "303.4.5",
+      "scope": "1",
+      "calculatedValue": 10.4,
+      "unit": "ML",
+      "formula": "Water meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"10.4","unit":"ML","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-306-4-8",
+      "activityName": "Table-8 : Recycling (Non-Hazardous Onsite)",
+      "griCategory": "GRI 306-4 Waste diverted from disposal",
+      "griSubcategory": "306.4.8",
+      "scope": "1",
+      "calculatedValue": 34.2,
+      "unit": "ton",
+      "formula": "Waste log",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"34.2","unit":"ton","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-306-5-23",
+      "activityName": "Table-23 : Landfilling (Non-Hazardous Onsite)",
+      "griCategory": "GRI 306-5 Waste directed to disposal",
+      "griSubcategory": "306.5.23",
+      "scope": "1",
+      "calculatedValue": 18.6,
+      "unit": "ton",
+      "formula": "Waste log",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"18.6","unit":"ton","parameterType":"variable"}
+      ]
     }
   ]'::jsonb
 );
@@ -404,6 +586,71 @@ VALUES (
       "inputParameters": [
         {"parameterId":"param_purchase_amount","parameterName":"purchase_amount","value":"41111","unit":"USD","parameterType":"variable"},
         {"parameterId":"param_spend_ef","parameterName":"spend_ef","value":"0.45","unit":"kg CO2e/USD","parameterType":"ef_value"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-302-1-4",
+      "activityName": "Table-4 : Electricity Purchased",
+      "griCategory": "GRI 302-1 Energy Consumption within the organization",
+      "griSubcategory": "302.1.4",
+      "scope": "1",
+      "calculatedValue": 1080,
+      "unit": "GJ",
+      "formula": "Energy meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"1080","unit":"GJ","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-303-3-1",
+      "activityName": "Table-1 : Water withdrawal - Fresh Water : TDS<= 1000mg/l",
+      "griCategory": "GRI 303-3 Water withdrawal",
+      "griSubcategory": "303.3.1",
+      "scope": "1",
+      "calculatedValue": 4.5,
+      "unit": "ML",
+      "formula": "Water meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"4.5","unit":"ML","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-303-4-5",
+      "activityName": "Table-5 : Water discharge - Fresh Water : TDS<= 1000mg/l",
+      "griCategory": "GRI 303-4 Water discharge",
+      "griSubcategory": "303.4.5",
+      "scope": "1",
+      "calculatedValue": 3.8,
+      "unit": "ML",
+      "formula": "Water meter reading",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"3.8","unit":"ML","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-306-4-8",
+      "activityName": "Table-8 : Recycling (Non-Hazardous Onsite)",
+      "griCategory": "GRI 306-4 Waste diverted from disposal",
+      "griSubcategory": "306.4.8",
+      "scope": "1",
+      "calculatedValue": 6.8,
+      "unit": "ton",
+      "formula": "Waste log",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"6.8","unit":"ton","parameterType":"variable"}
+      ]
+    },
+    {
+      "activityUID": "ACT-MOCK-306-5-23",
+      "activityName": "Table-23 : Landfilling (Non-Hazardous Onsite)",
+      "griCategory": "GRI 306-5 Waste directed to disposal",
+      "griSubcategory": "306.5.23",
+      "scope": "1",
+      "calculatedValue": 2.3,
+      "unit": "ton",
+      "formula": "Waste log",
+      "inputParameters": [
+        {"parameterId":"param_qty","parameterName":"quantity","value":"2.3","unit":"ton","parameterType":"variable"}
       ]
     }
   ]'::jsonb
