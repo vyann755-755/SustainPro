@@ -58,6 +58,7 @@ import {
 import { toast } from 'sonner@2.0.3';
 import * as XLSX from 'xlsx';
 import { businessUnitsData, projectsData, type BusinessUnit as SharedBusinessUnit, type Project as SharedProject } from '../../data/businessUnitsData';
+import { mockSubmissions as seedSubmissions } from '../../data/seedActivitySubmissions';
 import { allActivities } from '../sa/activitiesData';
 import { getFormulaByUID, getExpression, getVariableParameters, getEFParameters, type FormulaParameter } from '../../data/formulasData';
 import { calculateEmissions, type ParsedActivityData } from './ActivityDataUploadHelper';
@@ -195,59 +196,7 @@ const mockActivityTemplates: ActivityTemplate[] = (() => {
   return Array.from(uniqueActivitiesMap.values());
 })();
 
-export const mockSubmissions: BusinessUnitDataSubmission[] = businessUnitsData
-  .map((bu, index) => {
-    // Generate calculated data for each activity in the business unit
-    const calculatedData: CalculatedActivityData[] = bu.activities.map((activity, actIndex) => {
-      // Get the base activity to find GRI categories
-      const baseActivity = allActivities.find(a => a.uid === activity.uid);
-      
-      return {
-        activityUID: activity.uid,
-        activityName: activity.name,
-        griCategory: baseActivity?.grpCategories?.[0]?.startsWith('305.1') 
-          ? 'GRI 305-1 Direct GHG emissions (Scope 1)'
-          : baseActivity?.grpCategories?.[0]?.startsWith('305.2')
-          ? 'GRI 305-2 Indirect GHG emissions (Scope 2)'
-          : 'GRI 305-3 Indirect GHG emissions (Scope 3)',
-        griSubcategory: baseActivity?.grpCategories?.[0] || `305.${activity.scope}.${actIndex + 1}`,
-        scope: activity.scope,
-        calculatedValue: parseFloat((Math.random() * 50000 + 1000).toFixed(2)),
-        unit: 'kgCO2e',
-        formula: activity.formulaName || 'Unknown Formula',
-        inputParameters: [
-          // Mock some parameter inputs based on activity type
-          { 
-            parameterId: `p${actIndex * 2 + 1}`, 
-            parameterName: activity.scope === '1' ? 'Fuel Consumption' : activity.scope === '2' ? 'Electricity Consumption' : 'Activity Amount',
-            value: String(Math.floor(Math.random() * 10000 + 1000)),
-            unit: activity.scope === '1' ? 'm³' : activity.scope === '2' ? 'kWh' : 'units'
-          },
-          {
-            parameterId: `p${actIndex * 2 + 2}`,
-            parameterName: 'Emission Factor',
-            value: (Math.random() * 2 + 0.1).toFixed(4),
-            unit: 'kgCO2e/unit'
-          }
-        ]
-      };
-    });
-
-    return {
-      id: `sub-${index + 1}`,
-      businessUnitId: bu.id,
-      businessUnitName: bu.name,
-      businessUnitUID: bu.uid,
-      projectId: bu.projectId || 'e0915ab8-8b06-4071-8b05-f9ad220fcb69',
-      projectName: bu.projectName || 'Q1 2025 Carbon Assessment',
-      calculatedData,
-      uploadedBy: 'John Smith',
-      uploadedAt: new Date(2024, 11, index + 1, 10, 30, 0).toISOString(),
-      status: index === 0 ? 'approved' : index === 1 ? 'submitted' : 'draft',
-      comments: index === 0 ? 'All data verified and approved. Great work!' : undefined,
-      fileName: `${bu.uid}_ActivityData_Dec2024.xlsx`
-    };
-  });
+export const mockSubmissions = seedSubmissions;
 
 // Helper function to group activities by GRI category
 interface GroupedActivity {
