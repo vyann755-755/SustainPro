@@ -46,11 +46,23 @@ echo "3/5  Patching src/data/formulasData.ts (adds 3 dedicated formulas)"
 cp "$SCRIPT_DIR/patched/src/data/formulasData.ts" "src/data/formulasData.ts"
 
 # --- 4) activitiesData.ts ---------------------------------------------------
-echo "4/5  Patching src/components/sa/activitiesData.ts (re-binds 3 activities)"
+echo "4/8  Patching src/components/sa/activitiesData.ts (re-binds 3 activities)"
 cp "$SCRIPT_DIR/patched/src/components/sa/activitiesData.ts" "src/components/sa/activitiesData.ts"
 
-# --- 5) ActivityData.tsx — two surgical edits via node ---------------------
-echo "5/5  Patching src/components/customer/ActivityData.tsx"
+# --- 5) BCAProjects.tsx — switch hardcoded project IDs to UUIDs + 2025 -----
+echo "5/8  Patching src/components/sa/BCAProjects.tsx (project IDs → UUIDs, year 2025)"
+cp "$SCRIPT_DIR/patched/src/components/sa/BCAProjects.tsx" "src/components/sa/BCAProjects.tsx"
+
+# --- 6) GRIReportTable.tsx — direct Supabase query (no Edge Function) ------
+echo "6/8  Patching src/components/sa/GRIReportTable.tsx (direct Supabase query)"
+cp "$SCRIPT_DIR/patched/src/components/sa/GRIReportTable.tsx" "src/components/sa/GRIReportTable.tsx"
+
+# --- 7) BusinessUnitDataView.tsx — reporting year 2024 → 2025 --------------
+echo "7/8  Patching src/components/sa/BusinessUnitDataView.tsx (reportingYear → 2025)"
+cp "$SCRIPT_DIR/patched/src/components/sa/BusinessUnitDataView.tsx" "src/components/sa/BusinessUnitDataView.tsx"
+
+# --- 8) ActivityData.tsx — two surgical edits via node ---------------------
+echo "8/8  Patching src/components/customer/ActivityData.tsx"
 
 node - <<'NODE'
 const fs = require('fs');
