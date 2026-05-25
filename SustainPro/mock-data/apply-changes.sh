@@ -53,24 +53,28 @@ cp "$SCRIPT_DIR/patched/src/components/sa/activitiesData.ts" "src/components/sa/
 echo "5/10 Patching src/components/sa/BCAProjects.tsx (project IDs → UUIDs, year 2025, Supabase-backed PDF)"
 cp "$SCRIPT_DIR/patched/src/components/sa/BCAProjects.tsx" "src/components/sa/BCAProjects.tsx"
 
-# --- 6) GRIReportTable.tsx — direct Supabase query (no Edge Function) ------
-echo "6/10 Patching src/components/sa/GRIReportTable.tsx (direct Supabase query)"
+# --- 6) GRIReportTable.tsx — full template-based in-app report ----------
+echo "6/11 Patching src/components/sa/GRIReportTable.tsx (full 4-section in-app report)"
 cp "$SCRIPT_DIR/patched/src/components/sa/GRIReportTable.tsx" "src/components/sa/GRIReportTable.tsx"
 
-# --- 7) BusinessUnitDataView.tsx — reporting year 2025 + template PDFs ----
-echo "7/10 Patching src/components/sa/BusinessUnitDataView.tsx (template-based PDFs)"
+# --- 7) ISOReportTable.tsx — NEW component ---------------------------------
+echo "7/11 Adding NEW src/components/sa/ISOReportTable.tsx (in-app ISO report)"
+cp "$SCRIPT_DIR/patched/src/components/sa/ISOReportTable.tsx" "src/components/sa/ISOReportTable.tsx"
+
+# --- 8) BusinessUnitDataView.tsx — 3 tabs (Uploaded / GRI / ISO) ----------
+echo "8/11 Patching src/components/sa/BusinessUnitDataView.tsx (3 tabs, per-tab export)"
 cp "$SCRIPT_DIR/patched/src/components/sa/BusinessUnitDataView.tsx" "src/components/sa/BusinessUnitDataView.tsx"
 
-# --- 8) reportTemplates.ts — NEW shared GRI/ISO row structure -------------
-echo "8/10 Adding NEW src/data/reportTemplates.ts (shared GRI/ISO row templates)"
+# --- 9) reportTemplates.ts — NEW shared GRI/ISO row structure -------------
+echo "9/11 Adding NEW src/data/reportTemplates.ts (shared GRI/ISO row templates)"
 cp "$SCRIPT_DIR/patched/src/data/reportTemplates.ts" "src/data/reportTemplates.ts"
 
-# --- 9) reportPDF.ts — NEW shared GRI/ISO PDF generators -----------------
-echo "9/10 Adding NEW src/components/sa/reportPDF.ts (shared PDF generators)"
+# --- 10) reportPDF.ts — NEW shared GRI/ISO PDF generators -----------------
+echo "10/11 Adding NEW src/components/sa/reportPDF.ts (shared PDF generators)"
 cp "$SCRIPT_DIR/patched/src/components/sa/reportPDF.ts" "src/components/sa/reportPDF.ts"
 
-# --- 10) ActivityData.tsx — two surgical edits via node -------------------
-echo "10/10 Patching src/components/customer/ActivityData.tsx"
+# --- 11) ActivityData.tsx — two surgical edits via node -------------------
+echo "11/11 Patching src/components/customer/ActivityData.tsx"
 
 node - <<'NODE'
 const fs = require('fs');

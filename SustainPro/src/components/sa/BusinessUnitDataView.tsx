@@ -44,6 +44,7 @@ import {
 import { toast } from 'sonner@2.0.3';
 import { supabase } from '../../utils/supabase/client';
 import { GRIReportTable } from './GRIReportTable';
+import { ISOReportTable } from './ISOReportTable';
 import { UploadedDataTableWithRemarks } from './UploadedDataTableWithRemarks';
 import { mockSubmissions } from '../customer/ActivityData';
 import jsPDF from 'jspdf';
@@ -263,9 +264,13 @@ export function BusinessUnitDataView({
               <FileText className="h-4 w-4 mr-2" />
               Uploaded Data
             </TabsTrigger>
-            <TabsTrigger value="report" className="data-[state=active]:bg-white">
+            <TabsTrigger value="gri" className="data-[state=active]:bg-white">
               <BarChart3 className="h-4 w-4 mr-2" />
               GRI Report
+            </TabsTrigger>
+            <TabsTrigger value="iso" className="data-[state=active]:bg-white">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              ISO Report
             </TabsTrigger>
           </TabsList>
 
@@ -280,22 +285,7 @@ export function BusinessUnitDataView({
                       View variable parameters submitted by customer user
                     </CardDescription>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button className="bg-emerald-600 hover:bg-emerald-700">
-                        <Download className="h-4 w-4 mr-2" />
-                        Download PDF Report <ChevronDown className="h-4 w-4 ml-2" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => generateReport('GRI')} className="cursor-pointer">
-                        Export as GRI Format
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => generateReport('ISO')} className="cursor-pointer">
-                        Export as ISO Format
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+
                 </div>
               </CardHeader>
               <CardContent className="pt-6">
@@ -337,13 +327,25 @@ export function BusinessUnitDataView({
             </Card>
           </TabsContent>
 
-          {/* Report Tab */}
-          <TabsContent value="report" className="space-y-6">
-            <GRIReportTable 
+          {/* GRI Report Tab — single-BU view */}
+          <TabsContent value="gri" className="space-y-6">
+            <GRIReportTable
               projectName={projectName}
-              assignedBUs={assignedBUs}
+              assignedBUs={[businessUnitId]}
               reportingYear={2025}
               projectId={bcaProjectId}
+              singleBUName={businessUnitName}
+            />
+          </TabsContent>
+
+          {/* ISO Report Tab — single-BU view */}
+          <TabsContent value="iso" className="space-y-6">
+            <ISOReportTable
+              projectName={projectName}
+              assignedBUs={[businessUnitId]}
+              reportingYear={2025}
+              projectId={bcaProjectId}
+              singleBUName={businessUnitName}
             />
           </TabsContent>
         </Tabs>
