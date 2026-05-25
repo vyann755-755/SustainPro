@@ -21,6 +21,7 @@ import {
   sumGRIValues,
   formatReportValue,
 } from '../../data/reportTemplates';
+import { type CustomTemplate, rowLabel as ctRowLabel, sectionTitle as ctSectionTitle } from '../../data/customTemplate';
 import { generateISOPdf, type BUData } from './reportPDF';
 
 interface ISOReportTableProps {
@@ -92,6 +93,15 @@ export function ISOReportTable({
     if (assignedBUs.length > 0) fetchAll();
     else setLoading(false);
   }, [assignedBUs.join(','), projectId]);
+
+  
+  // Value lookup for custom rows by activityUID
+  const valueByActivityUID = (activityUID: string | null): number => {
+    if (!activityUID) return 0;
+    return aggregate
+      .filter((d: any) => d.activityUID === activityUID)
+      .reduce((s: number, d: any) => s + (Number(d.calculatedValue) || 0), 0);
+  };
 
   // Pre-compute category totals as we walk template rows
   const exportToPDF = () => {
@@ -188,7 +198,7 @@ export function ISOReportTable({
       <Card className="border-2 border-emerald-100">
         <CardHeader className="bg-gradient-to-r from-emerald-50 to-green-50 border-b border-emerald-100">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-emerald-900">ISO 14064-1 GHG Report</CardTitle>
+            <CardTitle className="text-emerald-900">{customTitle || 'ISO 14064-1 GHG Report'}</CardTitle>
             <Button onClick={exportToPDF} className="bg-emerald-600 hover:bg-emerald-700" size="sm">
               <FileDown className="h-4 w-4 mr-2" />
               Export ISO Report (PDF)
@@ -237,7 +247,34 @@ export function ISOReportTable({
                   <TableHead className="text-xs font-semibold text-emerald-900 text-center">NF3</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>{rows}</TableBody>
+              <TableBody>
+                {customTemplate ? (
+                  customTemplate.sections.map((section: any) => (
+                    <React.Fragment key={section.id}>
+                      <TableRow className="bg-emerald-100">
+                        <TableCell colSpan={11} className="font-bold text-emerald-900">
+                          {ctSectionTitle(section)}
+                        </TableCell>
+                      </TableRow>
+                      {section.rows.map((r: any) => {
+                        const v = valueByActivityUID(r.activityUID);
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="text-center text-sm">{r.id}</TableCell>
+                            <TableCell className="text-sm text-gray-900">
+                              {ctRowLabel(r)}
+                              {r.isCustom && <span className="ml-2 text-xs text-emerald-700">(custom)</span>}
+                            </TableCell>
+                            <TableCell className="text-xs text-gray-500 text-center"></TableCell>
+                            <TableCell className="text-right text-sm font-mono text-gray-900">{formatReportValue(v)}</TableCell>
+                            {Array(7).fill(0).map((_, j) => <TableCell key={j} />)}
+                          </TableRow>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))
+                ) : rows}
+              </TableBody>
             </Table>
           </div>
         </CardContent>

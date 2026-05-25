@@ -73,55 +73,87 @@ interface Project { id: string; name: string; year: number }
 // ============================================================================
 //  Build the initial CustomTemplate from a base type (GRI / ISO).
 // ============================================================================
+// Split a GRI template array into multiple sections at each scope-header row.
+// Each scope-header becomes its own selectable section in the editor.
+function splitByScopeHeaders(rows: GRIRow[], idPrefix: string, unit: string): CustomTemplateSection[] {
+  const sections: CustomTemplateSection[] = [];
+  let current: CustomTemplateSection | null = null;
+  rows.forEach((r) => {
+    if (r.type === 'scope-header') {
+      // Flush previous section
+      if (current && current.rows.length > 0) sections.push(current);
+      current = {
+        id: `${idPrefix}-${sections.length + 1}`,
+        originalTitle: r.name.trim(),
+        customTitle: null,
+        unit,
+        isLocked: false,
+        rows: [],
+      };
+    } else if (r.type === 'category' && current) {
+      current.rows.push({
+        id: r.category || r.name,
+        originalLabel: r.name,
+        customLabel: null,
+        activityUID: null,
+        isCustom: false,
+      });
+    }
+    // 'sub-header' rows are flattened into the current section — they're
+    // structural grouping inside Energy/Water/Waste reports but the SA can
+    // treat the whole scope-header section as one editable unit.
+  });
+  if (current && current.rows.length > 0) sections.push(current);
+  return sections;
+}
+
 function buildInitialTemplate(baseType: 'GRI' | 'ISO'): CustomTemplate {
   if (baseType === 'ISO') {
-    // ISO: one synthetic section with all category-headers + sub-rows
-    return {
-      sections: [
-        {
-          id: 'iso-cat-1-6',
-          originalTitle: 'ISO 14064-1 Categories 1–6',
+    // One section per ISO Category (1 through 6) so SA can pick at the right
+    // granularity. Each section gets all the category's sub-rows.
+    const sections: CustomTemplateSection[] = [];
+    let current: CustomTemplateSection | null = null;
+    isoTemplate.forEach((r) => {
+      if (r.type === 'category-header') {
+        if (current && current.rows.length > 0) sections.push(current);
+        current = {
+          id: `iso-cat-${r.number || sections.length + 1}`,
+          originalTitle: `${r.number ? 'Category ' + r.number + ': ' : ''}${r.name.replace(/^Category \d+:?\s*/, '')}`,
           customTitle: null,
           unit: 'kgCO2e',
           isLocked: false,
-          rows: isoTemplate
-            .filter((r) => r.type === 'sub-row' || r.type === 'category-header')
-            .map((r): CustomTemplateRow => ({
-              id: r.number || `iso-${(r.name || '').slice(0, 30)}`,
-              originalLabel: `${r.number ? r.number + ' ' : ''}${r.name}`,
-              customLabel: null,
-              activityUID: null,
-              isCustom: false,
-            })),
-        },
-      ],
-    };
-  }
-  // GRI — 4 sections: 305 / 302 / 303 / 306
-  const fromRows = (rows: GRIRow[], id: string, title: string, unit: string): CustomTemplateSection => ({
-    id,
-    originalTitle: title,
-    customTitle: null,
-    unit,
-    isLocked: false,
-    rows: rows
-      .filter((r) => r.type === 'category')
-      .map(
-        (r): CustomTemplateRow => ({
-          id: r.category || r.name,
-          originalLabel: r.name,
+          rows: [],
+        };
+        // If the category-header itself has no number (Category 6 case), still capture as a row
+        if (!r.number && r.griCategoryUIDs) {
+          current.rows.push({
+            id: 'cat6-aggregate',
+            originalLabel: r.name,
+            customLabel: null,
+            activityUID: null,
+            isCustom: false,
+          });
+        }
+      } else if (r.type === 'sub-row' && current && r.number) {
+        current.rows.push({
+          id: r.number,
+          originalLabel: `${r.number} ${r.name}`,
           customLabel: null,
           activityUID: null,
           isCustom: false,
-        }),
-      ),
-  });
+        });
+      }
+    });
+    if (current && current.rows.length > 0) sections.push(current);
+    return { sections };
+  }
+  // GRI — split each report by scope-header rows for finer-grained selection
   return {
     sections: [
-      fromRows(griGHGTemplate,    'ghg',    'GRI 305 GHG Report',          'kgCO2e'),
-      fromRows(griEnergyTemplate, 'energy', 'GRI 302 Energy Consumption',  'GJ'),
-      fromRows(griWaterTemplate,  'water',  'GRI 303 Water Consumption',   'ML'),
-      fromRows(griWasteTemplate,  'waste',  'GRI 306 Waste',               'ton'),
+      ...splitByScopeHeaders(griGHGTemplate,    'ghg',    'kgCO2e'),  // 305-1, 305-2, 305-3
+      ...splitByScopeHeaders(griEnergyTemplate, 'energy', 'GJ'),       // 302-1
+      ...splitByScopeHeaders(griWaterTemplate,  'water',  'ML'),       // 303-3, 303-4, 303-5
+      ...splitByScopeHeaders(griWasteTemplate,  'waste',  'ton'),      // 306-4, 306-5
     ],
   };
 }
@@ -356,22 +388,43 @@ function ReportTemplateEditor({ template, generations, projects, onCancel, onSav
     }));
   };
 
-  const addRow = (sectionId: string) => {
+  // Insert a custom row at a specific index. `afterRowId` = null → at the end.
+  const addRow = (sectionId: string, afterRowId: string | null = null) => {
     const newId = `custom-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const newRow: CustomTemplateRow = {
+      id: newId,
+      originalLabel: null,
+      customLabel: 'New row — click to rename',
+      activityUID: null,
+      isCustom: true,
+    };
     setStructure((s) => ({
       ...s,
-      sections: s.sections.map((sec) =>
-        sec.id !== sectionId ? sec : {
-          ...sec,
-          rows: [...sec.rows, {
-            id: newId,
-            originalLabel: null,
-            customLabel: 'New row — click to rename',
-            activityUID: null,
-            isCustom: true,
-          }],
-        }
-      ),
+      sections: s.sections.map((sec) => {
+        if (sec.id !== sectionId) return sec;
+        if (afterRowId === null) return { ...sec, rows: [...sec.rows, newRow] };
+        const idx = sec.rows.findIndex((r) => r.id === afterRowId);
+        const next = [...sec.rows];
+        next.splice(idx + 1, 0, newRow);
+        return { ...sec, rows: next };
+      }),
+    }));
+  };
+
+  // Move a row up or down within its section.
+  const moveRow = (sectionId: string, rowId: string, direction: 'up' | 'down') => {
+    setStructure((s) => ({
+      ...s,
+      sections: s.sections.map((sec) => {
+        if (sec.id !== sectionId) return sec;
+        const idx = sec.rows.findIndex((r) => r.id === rowId);
+        if (idx === -1) return sec;
+        const newIdx = direction === 'up' ? idx - 1 : idx + 1;
+        if (newIdx < 0 || newIdx >= sec.rows.length) return sec;
+        const next = [...sec.rows];
+        [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+        return { ...sec, rows: next };
+      }),
     }));
   };
 
@@ -613,11 +666,31 @@ function ReportTemplateEditor({ template, generations, projects, onCancel, onSav
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        {!section.isLocked && r.isCustom && (
-                          <Button variant="ghost" size="sm" className="text-red-600"
-                                  onClick={() => deleteRow(section.id, r.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                        {!section.isLocked && (
+                          <div className="flex items-center justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-7 w-7"
+                                    title="Move up"
+                                    onClick={() => moveRow(section.id, r.id, 'up')}>
+                              ↑
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7"
+                                    title="Move down"
+                                    onClick={() => moveRow(section.id, r.id, 'down')}>
+                              ↓
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-emerald-700"
+                                    title="Insert row below"
+                                    onClick={() => addRow(section.id, r.id)}>
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                            {r.isCustom && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-red-600"
+                                      title="Delete row"
+                                      onClick={() => deleteRow(section.id, r.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
                         )}
                       </TableCell>
                     </TableRow>
