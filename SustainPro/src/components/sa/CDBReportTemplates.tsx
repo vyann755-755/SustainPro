@@ -22,6 +22,7 @@ import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '../ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Checkbox } from '../ui/checkbox';
 import { Textarea } from '../ui/textarea';
@@ -75,21 +76,21 @@ interface Project { id: string; name: string; year: number }
 // ============================================================================
 // Split a GRI template array into multiple sections at each scope-header row.
 // Each scope-header becomes its own selectable section in the editor.
-function splitByScopeHeaders(rows: GRIRow[], idPrefix: string, unit: string): CustomTemplateSection[] {
+function splitByScopeHeaders(rows: GRIRow[], idPrefix: string, unit: string, mainGroup: string): CustomTemplateSection[] {
   const sections: CustomTemplateSection[] = [];
   let current: CustomTemplateSection | null = null;
   rows.forEach((r) => {
     if (r.type === 'scope-header') {
-      // Flush previous section
       if (current && current.rows.length > 0) sections.push(current);
       current = {
         id: `${idPrefix}-${sections.length + 1}`,
         originalTitle: r.name.trim(),
         customTitle: null,
         unit,
-        isLocked: false,
+        isLocked: true,                  // default locked — SA opts in to edit
         rows: [],
-      };
+        mainGroup,                       // for grouping in the picker
+      } as any;
     } else if (r.type === 'category' && current) {
       current.rows.push({
         id: r.category || r.name,
@@ -99,9 +100,6 @@ function splitByScopeHeaders(rows: GRIRow[], idPrefix: string, unit: string): Cu
         isCustom: false,
       });
     }
-    // 'sub-header' rows are flattened into the current section — they're
-    // structural grouping inside Energy/Water/Waste reports but the SA can
-    // treat the whole scope-header section as one editable unit.
   });
   if (current && current.rows.length > 0) sections.push(current);
   return sections;
@@ -121,9 +119,10 @@ function buildInitialTemplate(baseType: 'GRI' | 'ISO'): CustomTemplate {
           originalTitle: `${r.number ? 'Category ' + r.number + ': ' : ''}${r.name.replace(/^Category \d+:?\s*/, '')}`,
           customTitle: null,
           unit: 'kgCO2e',
-          isLocked: false,
+          isLocked: true,                  // default locked
           rows: [],
-        };
+          mainGroup: 'ISO Categories',
+        } as any;
         // If the category-header itself has no number (Category 6 case), still capture as a row
         if (!r.number && r.griCategoryUIDs) {
           current.rows.push({
@@ -150,10 +149,10 @@ function buildInitialTemplate(baseType: 'GRI' | 'ISO'): CustomTemplate {
   // GRI — split each report by scope-header rows for finer-grained selection
   return {
     sections: [
-      ...splitByScopeHeaders(griGHGTemplate,    'ghg',    'kgCO2e'),  // 305-1, 305-2, 305-3
-      ...splitByScopeHeaders(griEnergyTemplate, 'energy', 'GJ'),       // 302-1
-      ...splitByScopeHeaders(griWaterTemplate,  'water',  'ML'),       // 303-3, 303-4, 303-5
-      ...splitByScopeHeaders(griWasteTemplate,  'waste',  'ton'),      // 306-4, 306-5
+      ...splitByScopeHeaders(griGHGTemplate,    'ghg',    'kgCO2e', 'GHG Emissions'),
+      ...splitByScopeHeaders(griEnergyTemplate, 'energy', 'GJ',     'Energy Consumption'),
+      ...splitByScopeHeaders(griWaterTemplate,  'water',  'ML',     'Water Consumption'),
+      ...splitByScopeHeaders(griWasteTemplate,  'waste',  'ton',    'Waste'),
     ],
   };
 }
@@ -325,7 +324,6 @@ function ReportTemplateEditor({ template, generations, projects, onCancel, onSav
   const [responsible, setResponsible] = useState(template?.person_responsible ?? '');
   const [sourceGenId, setSourceGenId] = useState<string>('');
   const [baseType, setBaseType] = useState<'GRI' | 'ISO'>(template?.base_type ?? 'GRI');
-  const [editableSections, setEditableSections] = useState<Set<string>>(new Set());
 
   // Step 2 state — the structure we're editing
   const [structure, setStructure] = useState<CustomTemplate>(
@@ -354,15 +352,20 @@ function ReportTemplateEditor({ template, generations, projects, onCancel, onSav
 
   // ── Helpers to mutate structure ──────────────────────────────────────────
   const toggleSectionEditable = (sectionId: string, on: boolean) => {
-    setEditableSections((prev) => {
-      const next = new Set(prev);
-      on ? next.add(sectionId) : next.delete(sectionId);
-      return next;
-    });
     setStructure((s) => ({
       ...s,
       sections: s.sections.map((sec) =>
         sec.id === sectionId ? { ...sec, isLocked: !on } : sec
+      ),
+    }));
+  };
+
+  // Toggle every section in a main group (e.g. all GHG scopes at once)
+  const toggleMainGroupEditable = (mainGroup: string, on: boolean) => {
+    setStructure((s) => ({
+      ...s,
+      sections: s.sections.map((sec) =>
+        (sec as any).mainGroup === mainGroup ? { ...sec, isLocked: !on } : sec
       ),
     }));
   };
@@ -570,25 +573,73 @@ function ReportTemplateEditor({ template, generations, projects, onCancel, onSav
             )}
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>Categories to Edit (everything else stays locked)</Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {structure.sections.map((sec) => (
-                <label key={sec.id} className="flex items-center gap-2 p-2 border rounded-md cursor-pointer hover:bg-slate-50">
-                  <Checkbox
-                    checked={editableSections.has(sec.id)}
-                    onCheckedChange={(checked) => toggleSectionEditable(sec.id, !!checked)}
-                  />
-                  <span className="text-sm">{sec.originalTitle}</span>
-                </label>
-              ))}
+            <Label>Categories to Edit</Label>
+            <p className="text-xs text-slate-500">
+              Pick whole main categories or specific sub-categories. Untouched categories will still appear in the final report (use the Preview tab to see).
+            </p>
+            <div className="space-y-3">
+              {(() => {
+                // Group sections by mainGroup
+                const groups = new Map<string, CustomTemplateSection[]>();
+                structure.sections.forEach((sec) => {
+                  const g = (sec as any).mainGroup || 'Other';
+                  if (!groups.has(g)) groups.set(g, []);
+                  groups.get(g)!.push(sec);
+                });
+                return Array.from(groups.entries()).map(([groupName, secs]) => {
+                  const allUnlocked = secs.every((s) => !s.isLocked);
+                  const someUnlocked = secs.some((s) => !s.isLocked);
+                  return (
+                    <div key={groupName} className="border rounded-md overflow-hidden">
+                      <label className="flex items-center gap-2 p-3 bg-emerald-50 cursor-pointer hover:bg-emerald-100 border-b">
+                        <Checkbox
+                          checked={allUnlocked}
+                          // @ts-ignore
+                          ref={(el: any) => { if (el) el.indeterminate = someUnlocked && !allUnlocked; }}
+                          onCheckedChange={(checked) => toggleMainGroupEditable(groupName, !!checked)}
+                        />
+                        <span className="font-semibold text-emerald-900">{groupName}</span>
+                        <Badge variant="outline" className="ml-auto text-xs">
+                          {secs.filter((s) => !s.isLocked).length} / {secs.length} selected
+                        </Badge>
+                      </label>
+                      <div className="bg-white">
+                        {secs.map((sec) => (
+                          <label key={sec.id} className="flex items-center gap-2 p-2 pl-8 cursor-pointer hover:bg-slate-50 border-b last:border-b-0">
+                            <Checkbox
+                              checked={!sec.isLocked}
+                              onCheckedChange={(checked) => toggleSectionEditable(sec.id, !!checked)}
+                            />
+                            <span className="text-sm">{sec.originalTitle}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Step 2 — Editor */}
-      {structure.sections.map((section) => (
-        <Card key={section.id} className={section.isLocked ? 'opacity-70' : ''}>
+      {/* Step 2 — Editor / Preview tabs */}
+      <Tabs defaultValue="edit" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="edit">Edit Selected Categories</TabsTrigger>
+          <TabsTrigger value="preview">Preview Full Report</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="edit" className="space-y-4">
+          {structure.sections.filter((s) => !s.isLocked).length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="p-8 text-center text-sm text-slate-500">
+                No categories selected yet. Tick "Categories to Edit" above to start editing.
+              </CardContent>
+            </Card>
+          )}
+          {structure.sections.filter((s) => !s.isLocked).map((section) => (
+        <Card key={section.id}>
           <CardHeader className="flex flex-row items-center justify-between">
             <div className="flex-1 mr-3">
               {section.isLocked ? (
@@ -606,11 +657,7 @@ function ReportTemplateEditor({ template, generations, projects, onCancel, onSav
               )}
               <p className="text-xs text-slate-500 mt-1">Unit: {section.unit}</p>
             </div>
-            {!section.isLocked && (
-              <Button variant="outline" size="sm" onClick={() => addRow(section.id)}>
-                <Plus className="h-4 w-4 mr-1" /> Add Row
-              </Button>
-            )}
+
           </CardHeader>
           <CardContent>
             <Table>
@@ -701,6 +748,85 @@ function ReportTemplateEditor({ template, generations, projects, onCancel, onSav
           </CardContent>
         </Card>
       ))}
+        </TabsContent>
+
+        <TabsContent value="preview" className="space-y-4">
+          <Card className="border-2 border-emerald-100">
+            <CardHeader className="bg-emerald-50/50">
+              <CardTitle className="text-lg text-emerald-800">Full Report Preview</CardTitle>
+              <CardDescription>
+                Shows every category — edited ones with your changes, untouched ones in their original form.
+                This is how the saved report template will render in BCA Projects and BU views.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-slate-50">
+                    <TableHead className="w-[120px]">Cat.</TableHead>
+                    <TableHead>Reporting category</TableHead>
+                    <TableHead className="w-[100px] text-center">Unit</TableHead>
+                    <TableHead className="w-[200px]">Mapped Activity</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {structure.sections.map((section) => (
+                    <React.Fragment key={section.id}>
+                      <TableRow className="bg-emerald-50">
+                        <TableCell colSpan={4} className="font-semibold text-emerald-900">
+                          {sectionTitle(section)}
+                          {section.customTitle && (
+                            <Badge variant="outline" className="ml-2 text-xs bg-amber-50 border-amber-300 text-amber-800">
+                              renamed
+                            </Badge>
+                          )}
+                          {section.isLocked && (
+                            <Badge variant="outline" className="ml-2 text-xs">unedited</Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                      {section.rows.map((r) => {
+                        const activity = allActivities.find((a) => a.uid === r.activityUID);
+                        return (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-mono text-xs text-slate-600">{r.id}</TableCell>
+                            <TableCell className="text-sm">
+                              {rowLabel(r)}
+                              {r.customLabel && (
+                                <Badge variant="outline" className="ml-2 text-xs bg-amber-50 border-amber-300 text-amber-800">
+                                  renamed
+                                </Badge>
+                              )}
+                              {r.isCustom && (
+                                <Badge variant="outline" className="ml-2 text-xs bg-emerald-50 border-emerald-300 text-emerald-800">
+                                  custom
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-center text-xs text-slate-500">{section.unit}</TableCell>
+                            <TableCell className="text-xs">
+                              {activity ? (
+                                <>
+                                  <span className="font-mono text-slate-600">{activity.uid}</span>
+                                  <div className="text-slate-800">{activity.name}</div>
+                                </>
+                              ) : section.isLocked ? (
+                                <span className="text-slate-400">— (inherited)</span>
+                              ) : (
+                                <span className="text-amber-700">— needs mapping</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       {/* Validation banner */}
       {unmapped.length > 0 && (
