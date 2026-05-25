@@ -38,8 +38,12 @@ echo "1/10 Copying seed file → src/data/seedActivitySubmissions.ts"
 cp "$SCRIPT_DIR/seedActivitySubmissions.ts" "src/data/seedActivitySubmissions.ts"
 
 # --- 2) Supabase SQL --------------------------------------------------------
-echo "2/10 Copying Supabase seed → seed-supabase.sql (repo root)"
+echo "2/13 Copying Supabase seed → seed-supabase.sql (repo root)"
 cp "$SCRIPT_DIR/seed-supabase.sql" "seed-supabase.sql"
+
+# --- 2b) Report Templates schema -------------------------------------------
+echo "2b/13 Copying Report Templates SQL → seed-report-templates.sql"
+cp "$SCRIPT_DIR/seed-report-templates.sql" "seed-report-templates.sql"
 
 # --- 3) formulasData.ts -----------------------------------------------------
 echo "3/10 Patching src/data/formulasData.ts (adds 3 dedicated formulas)"
@@ -66,15 +70,23 @@ echo "8/11 Patching src/components/sa/BusinessUnitDataView.tsx (3 tabs, per-tab 
 cp "$SCRIPT_DIR/patched/src/components/sa/BusinessUnitDataView.tsx" "src/components/sa/BusinessUnitDataView.tsx"
 
 # --- 9) reportTemplates.ts — NEW shared GRI/ISO row structure -------------
-echo "9/11 Adding NEW src/data/reportTemplates.ts (shared GRI/ISO row templates)"
+echo "9/13 Adding NEW src/data/reportTemplates.ts (shared GRI/ISO row templates)"
 cp "$SCRIPT_DIR/patched/src/data/reportTemplates.ts" "src/data/reportTemplates.ts"
 
+# --- 9b) customTemplate.ts — NEW types for the report template editor ----
+echo "9b/13 Adding NEW src/data/customTemplate.ts (custom template schema + helpers)"
+cp "$SCRIPT_DIR/patched/src/data/customTemplate.ts" "src/data/customTemplate.ts"
+
 # --- 10) reportPDF.ts — NEW shared GRI/ISO PDF generators -----------------
-echo "10/11 Adding NEW src/components/sa/reportPDF.ts (shared PDF generators)"
+echo "10/13 Adding NEW src/components/sa/reportPDF.ts (shared PDF generators)"
 cp "$SCRIPT_DIR/patched/src/components/sa/reportPDF.ts" "src/components/sa/reportPDF.ts"
 
-# --- 11) ActivityData.tsx — two surgical edits via node -------------------
-echo "11/11 Patching src/components/customer/ActivityData.tsx"
+# --- 10b) CDBReportTemplates.tsx — full wizard (Report Templates module) --
+echo "10b/13 Patching src/components/sa/CDBReportTemplates.tsx (template wizard)"
+cp "$SCRIPT_DIR/patched/src/components/sa/CDBReportTemplates.tsx" "src/components/sa/CDBReportTemplates.tsx"
+
+# --- 11) Customer ActivityData.tsx patch ----------------------------------
+echo "11/13 Patching src/components/customer/ActivityData.tsx"
 
 node - <<'NODE'
 const fs = require('fs');

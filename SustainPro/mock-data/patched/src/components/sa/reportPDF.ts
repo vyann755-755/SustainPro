@@ -20,6 +20,8 @@ import {
   sumGRIValues,
   type GRIRow,
 } from '../../data/reportTemplates';
+import { type CustomTemplate, rowLabel, sectionTitle as ctSectionTitle } from '../../data/customTemplate';
+import { allActivities } from './activitiesData';
 
 declare module 'jspdf' {
   interface jsPDF {
@@ -34,6 +36,67 @@ export interface BUData {
   calculatedData: any[];
 }
 
+
+// Helper: look up the calculated value for an activity UID by summing
+// matching rows in the customer's calculated_data. Falls back to 0.
+function valueByActivityUID(buData: BUData[], activityUID: string | null): number {
+  if (!activityUID) return 0;
+  let total = 0;
+  for (const bu of buData) {
+    for (const row of bu.calculatedData || []) {
+      if (row.activityUID === activityUID) total += Number(row.calculatedValue) || 0;
+    }
+  }
+  return total;
+}
+
+// Helper: when running a CustomTemplate-based GRI PDF, render each custom
+// section. Returns an array of rows compatible with autotable body cells.
+function buildCustomGRISection(args: ReportArgs, section: any) {
+  const { buData } = args;
+  const cells: any[] = [];
+
+  // Scope-style header
+  cells.push([
+    {
+      content: ctSectionTitle(section),
+      colSpan: 2 + buData.length * 2 + 2,
+      styles: { fillColor: [209, 250, 229], textColor: [6, 78, 59], fontStyle: 'bold' },
+    },
+  ]);
+
+  for (const r of section.rows) {
+    const label = rowLabel(r);
+    const row: any[] = [
+      { content: r.id, styles: { fontSize: 7, halign: 'center' } },
+      { content: label },
+    ];
+    let total = 0;
+    for (const bu of buData) {
+      let v = 0;
+      if (r.activityUID) {
+        for (const d of bu.calculatedData || []) {
+          if (d.activityUID === r.activityUID) v += Number(d.calculatedValue) || 0;
+        }
+      } else if (!r.isCustom) {
+        // For inherited (non-custom) rows without explicit activity mapping,
+        // fall back to GRI sub-category id matching (e.g. "305.1.1")
+        v = getGRIValue(bu.calculatedData, r.id);
+      }
+      total += v;
+      row.push({ content: section.unit, styles: { halign: 'center', fontSize: 7 } });
+      row.push({ content: formatReportValue(v), styles: { halign: 'right' } });
+    }
+    row.push({ content: section.unit, styles: { halign: 'center', fontSize: 7 } });
+    row.push({
+      content: formatReportValue(total),
+      styles: { halign: 'right', fontStyle: 'bold', fillColor: [254, 243, 199] },
+    });
+    cells.push(row);
+  }
+  return cells;
+}
+
 export interface ReportArgs {
   projectName: string;
   reportingYear: number;
@@ -41,12 +104,66 @@ export interface ReportArgs {
   singleBUName?: string;
   /** All BU data to include. Length 1 for single-BU. */
   buData: BUData[];
+  /** Optional custom template (overrides labels, adds rows). */
+  customTemplate?: CustomTemplate | null;
+  /** Optional override title used in the PDF header (e.g. custom template name). */
+  customTitle?: string;
 }
 
 // ============================================================================
 // GRI PDF — multi-section: GHG (305) → Energy (302) → Water (303) → Waste (306)
 // ============================================================================
 export function generateGRIPdf(args: ReportArgs): void {
+  // Custom-template path
+  if (args.customTemplate) {
+    const { projectName, reportingYear, singleBUName, buData, customTemplate, customTitle } = args;
+    const doc = new jsPDF('landscape');
+    doc.setFontSize(15); doc.setFont('helvetica', 'bold');
+    doc.text(customTitle || 'Custom GRI Report', 14, 16);
+    doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+    doc.text(`Reporting Organisation Name: ${projectName}`, 14, 22);
+    doc.text(`Reporting Year: ${reportingYear}`, 14, 28);
+    if (singleBUName) doc.text(`Business Unit: ${singleBUName}`, 14, 34);
+
+    customTemplate.sections.forEach((section, idx) => {
+      if (idx > 0) doc.addPage();
+      doc.setFontSize(15); doc.setFont('helvetica', 'bold');
+      doc.text(ctSectionTitle(section), 14, 16);
+      doc.setFontSize(10); doc.setFont('helvetica', 'normal');
+      doc.text(`Reporting Organisation Name: ${projectName}`, 14, 22);
+      doc.text(`Reporting Year: ${reportingYear}`, 14, 28);
+      if (singleBUName) doc.text(`Business Unit: ${singleBUName}`, 14, 34);
+
+      const headerRow1: any[] = [
+        { content: 'Cat.', rowSpan: 2 },
+        { content: 'Reporting category', rowSpan: 2 },
+      ];
+      buData.forEach((bu) => headerRow1.push({ content: `${bu.businessUnitName} (BU)`, colSpan: 2, styles: { halign: 'center' } }));
+      headerRow1.push({ content: 'Total', colSpan: 2, styles: { halign: 'center' } });
+      const headerRow2: any[] = [];
+      buData.forEach(() => { headerRow2.push({ content: 'Unit' }); headerRow2.push({ content: 'Inventory' }); });
+      headerRow2.push({ content: 'Unit' }); headerRow2.push({ content: 'Inventory' });
+
+      const body = buildCustomGRISection(args, section).slice(1); // skip section header (we used doc.text)
+      autoTable(doc, {
+        startY: singleBUName ? 40 : 34,
+        head: [headerRow1, headerRow2],
+        body,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2, lineColor: [200, 200, 200], lineWidth: 0.1 },
+        headStyles: { fillColor: [16, 185, 129], textColor: [255, 255, 255], fontStyle: 'bold' },
+        columnStyles: { 0: { cellWidth: 18, fontSize: 7 }, 1: { cellWidth: 'auto', minCellWidth: 70 } },
+        margin: { left: 8, right: 8 },
+      });
+    });
+
+    const fnSuffix = singleBUName ? singleBUName.replace(/\s+/g, '_') : 'All_BUs';
+    const baseName = (customTitle || 'Custom_Report').replace(/\s+/g, '_');
+    doc.save(`${baseName}_${projectName.replace(/\s+/g, '_')}_${fnSuffix}_${reportingYear}.pdf`);
+    return;
+  }
+
+
   const { projectName, reportingYear, singleBUName, buData } = args;
   const doc = new jsPDF('landscape');
 

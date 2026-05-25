@@ -30,6 +30,8 @@ interface ISOReportTableProps {
   projectId: string;
   /** When set, the table is a single-BU report (header shows BU name). */
   singleBUName?: string;
+  customTemplate?: any;
+  customTitle?: string;
 }
 
 export function ISOReportTable({
@@ -38,6 +40,8 @@ export function ISOReportTable({
   reportingYear = 2025,
   projectId,
   singleBUName,
+  customTemplate,
+  customTitle,
 }: ISOReportTableProps) {
   const [aggregate, setAggregate] = useState<any[]>([]);
   const [buData, setBuData] = useState<BUData[]>([]);

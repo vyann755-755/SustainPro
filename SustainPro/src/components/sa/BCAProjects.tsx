@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { 
@@ -210,6 +210,16 @@ export function BCAProjects() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [customTemplates, setCustomTemplates] = useState<any[]>([]);
+
+  // Load saved report templates from Supabase
+  useEffect(() => {
+    supabase
+      .from('report_templates')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setCustomTemplates(data); });
+  }, []);
   const [selectedBUView, setSelectedBUView] = useState<{
     projectId: string;
     projectName: string;
@@ -225,7 +235,7 @@ export function BCAProjects() {
     assignedBUs: [] as string[]
   });
 
-  const generateProjectReport = async (project: BCAProject, type: 'GRI' | 'ISO') => {
+  const generateProjectReport = async (project: BCAProject, type: 'GRI' | 'ISO', customTemplate?: any) => {
     try {
       toast.info(`Generating ${type} report for ${project.name}…`);
 
@@ -251,17 +261,30 @@ export function BCAProjects() {
         })
       );
 
+      // Log to report_generations so future templates can use this as a source
+      await supabase.from('report_generations').insert({
+        project_id: project.id,
+        business_unit_id: null,
+        report_type: customTemplate ? customTemplate.id : type,
+        template_id: customTemplate ? customTemplate.id : null,
+        generated_by: 'Sustainability Architect',
+      });
+
       if (type === 'GRI') {
         generateGRIPdf({
           projectName: project.name,
           reportingYear: project.year,
           buData,
+          customTemplate: customTemplate ? customTemplate.template_structure : null,
+          customTitle: customTemplate ? customTemplate.name : undefined,
         });
       } else {
         generateISOPdf({
           projectName: project.name,
           reportingYear: project.year,
           buData,
+          customTemplate: customTemplate ? customTemplate.template_structure : null,
+          customTitle: customTemplate ? customTemplate.name : undefined,
         });
       }
 
@@ -610,6 +633,18 @@ export function BCAProjects() {
                             <DropdownMenuItem onClick={() => generateProjectReport(project, 'ISO')} className="cursor-pointer">
                               Generate ISO Report
                             </DropdownMenuItem>
+                            {customTemplates.length > 0 && (
+                              <div className="border-t my-1" />
+                            )}
+                            {customTemplates.map((tpl) => (
+                              <DropdownMenuItem
+                                key={tpl.id}
+                                onClick={() => generateProjectReport(project, tpl.base_type, tpl)}
+                                className="cursor-pointer"
+                              >
+                                Generate "{tpl.name}"
+                              </DropdownMenuItem>
+                            ))}
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <Button 

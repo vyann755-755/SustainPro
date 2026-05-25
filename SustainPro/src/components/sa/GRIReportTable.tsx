@@ -35,6 +35,8 @@ interface GRIReportTableProps {
   projectId: string;
   /** When set, the table shows a single-BU layout (no per-BU columns). */
   singleBUName?: string;
+  customTemplate?: any;
+  customTitle?: string;
 }
 
 interface BusinessUnitData {
@@ -49,6 +51,8 @@ export function GRIReportTable({
   reportingYear = 2025,
   projectId,
   singleBUName,
+  customTemplate,
+  customTitle,
 }: GRIReportTableProps) {
   const [buDataMap, setBuDataMap] = useState<Map<string, BusinessUnitData>>(new Map());
   const [loading, setLoading] = useState(true);

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card';
 import { 
   Table,
@@ -264,13 +265,9 @@ export function BusinessUnitDataView({
               <FileText className="h-4 w-4 mr-2" />
               Uploaded Data
             </TabsTrigger>
-            <TabsTrigger value="gri" className="data-[state=active]:bg-white">
+            <TabsTrigger value="report" className="data-[state=active]:bg-white">
               <BarChart3 className="h-4 w-4 mr-2" />
-              GRI Report
-            </TabsTrigger>
-            <TabsTrigger value="iso" className="data-[state=active]:bg-white">
-              <BarChart3 className="h-4 w-4 mr-2" />
-              ISO Report
+              Report
             </TabsTrigger>
           </TabsList>
 
@@ -327,29 +324,108 @@ export function BusinessUnitDataView({
             </Card>
           </TabsContent>
 
-          {/* GRI Report Tab — single-BU view */}
-          <TabsContent value="gri" className="space-y-6">
-            <GRIReportTable
+          {/* Report Tab — single-BU view, dropdown to switch report type */}
+          <TabsContent value="report" className="space-y-6">
+            <BUReportPreview
               projectName={projectName}
-              assignedBUs={[businessUnitId]}
-              reportingYear={2025}
+              businessUnitId={businessUnitId}
+              businessUnitName={businessUnitName}
               projectId={bcaProjectId}
-              singleBUName={businessUnitName}
-            />
-          </TabsContent>
-
-          {/* ISO Report Tab — single-BU view */}
-          <TabsContent value="iso" className="space-y-6">
-            <ISOReportTable
-              projectName={projectName}
-              assignedBUs={[businessUnitId]}
-              reportingYear={2025}
-              projectId={bcaProjectId}
-              singleBUName={businessUnitName}
             />
           </TabsContent>
         </Tabs>
       )}
+    </div>
+  );
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+//                  BUReportPreview  (single-BU report viewer)
+// ────────────────────────────────────────────────────────────────────────────
+function BUReportPreview({
+  projectName, businessUnitId, businessUnitName, projectId,
+}: {
+  projectName: string;
+  businessUnitId: string;
+  businessUnitName: string;
+  projectId: string;
+}) {
+  const [reportType, setReportType] = React.useState<string>('GRI');
+  const [customTemplates, setCustomTemplates] = React.useState<any[]>([]);
+
+  React.useEffect(() => {
+    supabase
+      .from('report_templates')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setCustomTemplates(data); });
+  }, []);
+
+  const customTpl = customTemplates.find((t) => t.id === reportType);
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-2 border-emerald-100">
+        <CardContent className="p-4 flex items-center gap-3">
+          <span className="text-sm font-medium text-gray-700">Report type:</span>
+          <Select value={reportType} onValueChange={setReportType}>
+            <SelectTrigger className="w-72">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="GRI">GRI Report</SelectItem>
+              <SelectItem value="ISO">ISO Report</SelectItem>
+              {customTemplates.length > 0 && (
+                <div className="border-t my-1" />
+              )}
+              {customTemplates.map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      {reportType === 'GRI' ? (
+        <GRIReportTable
+          projectName={projectName}
+          assignedBUs={[businessUnitId]}
+          reportingYear={2025}
+          projectId={projectId}
+          singleBUName={businessUnitName}
+        />
+      ) : reportType === 'ISO' ? (
+        <ISOReportTable
+          projectName={projectName}
+          assignedBUs={[businessUnitId]}
+          reportingYear={2025}
+          projectId={projectId}
+          singleBUName={businessUnitName}
+        />
+      ) : customTpl ? (
+        // Custom template — render with its base type, passing customTemplate
+        customTpl.base_type === 'GRI' ? (
+          <GRIReportTable
+            projectName={projectName}
+            assignedBUs={[businessUnitId]}
+            reportingYear={customTpl.reporting_year || 2025}
+            projectId={projectId}
+            singleBUName={businessUnitName}
+            customTemplate={customTpl.template_structure}
+            customTitle={customTpl.name}
+          />
+        ) : (
+          <ISOReportTable
+            projectName={projectName}
+            assignedBUs={[businessUnitId]}
+            reportingYear={customTpl.reporting_year || 2025}
+            projectId={projectId}
+            singleBUName={businessUnitName}
+            customTemplate={customTpl.template_structure}
+            customTitle={customTpl.name}
+          />
+        )
+      ) : null}
     </div>
   );
 }
