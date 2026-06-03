@@ -100,8 +100,11 @@ import {
 } from 'recharts';
 import { mockBusinessUnits } from './CDBBusinessUnits';
 import { PROJ_1_UUID, PROJ_2_UUID } from '../../data/businessUnitsData';
+import { PROJ_ISO_UUID } from '../../data/isoBusinessUnits';
 import { supabase } from '../../utils/supabase/client';
 import { generateGRIPdf, generateISOPdf, type BUData } from './reportPDF';
+import { validateTemplateAgainstProject, type TemplateValidation } from '../../data/templateValidation';
+import { TemplateValidationDialog } from './TemplateValidationDialog';
 import { BusinessUnitDataView } from './BusinessUnitDataView';
 
 interface BCAProject {
@@ -117,9 +120,14 @@ interface BCAProject {
   scope1?: number;
   scope2?: number;
   scope3?: number;
+  /** Reporting standard this project generates against. */
+  reportType?: 'GRI' | 'ISO';
+  /** Saved custom template id, when the project reports from one. */
+  templateId?: string | null;
 }
 
-// Mock data for business units
+// Business units come from the single source of truth (businessUnitsData),
+// which now includes the ISO 14064-1 inventory BUs alongside the GRI BUs.
 const mockBUs = mockBusinessUnits;
 
 const mockCustomers = [
@@ -199,6 +207,22 @@ export function BCAProjects() {
       scope1: 215,
       scope2: 167,
       scope3: 400
+    },
+    {
+      id: PROJ_ISO_UUID, // ISO 14064-1 inventory — matches seed-supabase-iso.sql
+      name: 'FY2025 ISO 14064-1 Inventory',
+      description: 'Organizational GHG inventory under ISO 14064-1:2018 (Categories 1–6)',
+      year: 2025,
+      assignedBUs: ['iso-bu-1', 'iso-bu-2', 'iso-bu-3'],
+      status: 'in-progress',
+      createdAt: '2025-01-06',
+      lastCalculated: '2025-02-08',
+      reportType: 'ISO',
+      templateId: null,
+      totalEmissions: 7224,
+      scope1: 2084,
+      scope2: 3935,
+      scope3: 1204
     }
   ]);
 
@@ -211,6 +235,12 @@ export function BCAProjects() {
   const [activeTab, setActiveTab] = useState('overview');
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
   const [customTemplates, setCustomTemplates] = useState<any[]>([]);
+  const [pendingReport, setPendingReport] = useState<{
+    project: BCAProject;
+    type: 'GRI' | 'ISO';
+    template: any;
+    validation: TemplateValidation;
+  } | null>(null);
 
   // Load saved report templates from Supabase
   useEffect(() => {
@@ -232,10 +262,26 @@ export function BCAProjects() {
     name: '',
     description: '',
     year: new Date().getFullYear(),
-    assignedBUs: [] as string[]
+    assignedBUs: [] as string[],
+    reportType: 'GRI' as 'GRI' | 'ISO',
+    templateId: null as string | null,
   });
 
+  // Public entry — runs validation first when a custom template is involved
   const generateProjectReport = async (project: BCAProject, type: 'GRI' | 'ISO', customTemplate?: any) => {
+    // Built-in GRI/ISO have no template-side activity binding to validate
+    if (customTemplate?.template_structure) {
+      const v = validateTemplateAgainstProject(customTemplate.template_structure, project.assignedBUs);
+      if (!v.canGenerate || v.partialCoverage.length > 0) {
+        setPendingReport({ project, type, template: customTemplate, validation: v });
+        return;
+      }
+    }
+    return runProjectReport(project, type, customTemplate);
+  };
+
+  // Actually fetches data + generates the PDF
+  const runProjectReport = async (project: BCAProject, type: 'GRI' | 'ISO', customTemplate?: any) => {
     try {
       toast.info(`Generating ${type} report for ${project.name}…`);
 
@@ -309,6 +355,10 @@ export function BCAProjects() {
       toast.error('Please provide a project name');
       return;
     }
+    if (formData.assignedBUs.length === 0) {
+      toast.error('Select at least one business unit for this report');
+      return;
+    }
 
     const newProject: BCAProject = {
       id: Date.now().toString(),
@@ -316,6 +366,8 @@ export function BCAProjects() {
       description: formData.description,
       year: formData.year,
       assignedBUs: formData.assignedBUs,
+      reportType: formData.reportType,
+      templateId: formData.templateId,
       status: 'draft',
       createdAt: new Date().toISOString().split('T')[0]
     };
@@ -341,7 +393,9 @@ export function BCAProjects() {
             ...p,
             name: formData.name,
             description: formData.description,
-            assignedBUs: formData.assignedBUs
+            assignedBUs: formData.assignedBUs,
+            reportType: formData.reportType,
+            templateId: formData.templateId
           }
         : p
     );
@@ -390,7 +444,9 @@ export function BCAProjects() {
       name: project.name,
       description: project.description,
       year: project.year,
-      assignedBUs: project.assignedBUs
+      assignedBUs: project.assignedBUs,
+      reportType: project.reportType ?? 'GRI',
+      templateId: project.templateId ?? null
     });
     setIsEditDialogOpen(true);
   };
@@ -410,7 +466,9 @@ export function BCAProjects() {
       name: '',
       description: '',
       year: new Date().getFullYear(),
-      assignedBUs: []
+      assignedBUs: [],
+      reportType: 'GRI',
+      templateId: null
     });
   };
 
@@ -798,10 +856,43 @@ export function BCAProjects() {
               />
             </div>
             
+            <div className="space-y-2">
+              <Label htmlFor="report-template">Report to Generate *</Label>
+              <p className="text-sm text-gray-600">Choose the reporting standard or a saved template this project will produce.</p>
+              <Select
+                value={formData.templateId ? `tpl:${formData.templateId}` : formData.reportType}
+                onValueChange={(value) => {
+                  if (value.startsWith('tpl:')) {
+                    const id = value.slice(4);
+                    const tpl = customTemplates.find((t) => t.id === id);
+                    setFormData({ ...formData, templateId: id, reportType: tpl?.base_type === 'ISO' ? 'ISO' : 'GRI' });
+                  } else {
+                    setFormData({ ...formData, reportType: value as 'GRI' | 'ISO', templateId: null });
+                  }
+                }}
+              >
+                <SelectTrigger id="report-template">
+                  <SelectValue placeholder="Select a report" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GRI">GRI Report (305 / 302 / 303 / 306)</SelectItem>
+                  <SelectItem value="ISO">ISO 14064-1 Report (Categories 1–6)</SelectItem>
+                  {customTemplates.length > 0 && customTemplates.map((tpl) => (
+                    <SelectItem key={tpl.id} value={`tpl:${tpl.id}`}>
+                      {tpl.name} ({tpl.base_type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-4">
               <div>
-                <Label>Assign Business Units *</Label>
-                <p className="text-sm text-gray-600">Select which business units to include in this project</p>
+                <Label>Assign Business Units for this Report *</Label>
+                <p className="text-sm text-gray-600">
+                  Select the business units that will work on this project. Customer users under each
+                  selected unit upload their data against the {formData.reportType === 'ISO' ? 'ISO 14064-1' : 'GRI'} activities.
+                </p>
               </div>
               
               {/* List of Business Units */}

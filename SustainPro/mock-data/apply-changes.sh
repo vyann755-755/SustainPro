@@ -45,12 +45,16 @@ cp "$SCRIPT_DIR/seed-supabase.sql" "seed-supabase.sql"
 echo "2b/13 Copying Report Templates SQL → seed-report-templates.sql"
 cp "$SCRIPT_DIR/seed-report-templates.sql" "seed-report-templates.sql"
 
+# --- 2c) ISO 14064-1 flow SQL ----------------------------------------------
+echo "2c/16 Copying ISO flow SQL → seed-supabase-iso.sql"
+cp "$SCRIPT_DIR/seed-supabase-iso.sql" "seed-supabase-iso.sql"
+
 # --- 3) formulasData.ts -----------------------------------------------------
 echo "3/10 Patching src/data/formulasData.ts (adds 3 dedicated formulas)"
 cp "$SCRIPT_DIR/patched/src/data/formulasData.ts" "src/data/formulasData.ts"
 
 # --- 4) activitiesData.ts ---------------------------------------------------
-echo "4/10 Patching src/components/sa/activitiesData.ts (re-binds 3 activities)"
+echo "4/16 Patching src/components/sa/activitiesData.ts (dedicated formulas + ISO merge)"
 cp "$SCRIPT_DIR/patched/src/components/sa/activitiesData.ts" "src/components/sa/activitiesData.ts"
 
 # --- 5) BCAProjects.tsx — switch hardcoded project IDs to UUIDs + 2025 -----
@@ -74,55 +78,45 @@ echo "9/13 Adding NEW src/data/reportTemplates.ts (shared GRI/ISO row templates)
 cp "$SCRIPT_DIR/patched/src/data/reportTemplates.ts" "src/data/reportTemplates.ts"
 
 # --- 9b) customTemplate.ts — NEW types for the report template editor ----
-echo "9b/13 Adding NEW src/data/customTemplate.ts (custom template schema + helpers)"
+echo "9b/15 Adding NEW src/data/customTemplate.ts (custom template schema + helpers)"
 cp "$SCRIPT_DIR/patched/src/data/customTemplate.ts" "src/data/customTemplate.ts"
+
+# --- 9c) templateValidation.ts — NEW BU/activity coverage check ----------
+echo "9c/15 Adding NEW src/data/templateValidation.ts (BU/activity validation)"
+cp "$SCRIPT_DIR/patched/src/data/templateValidation.ts" "src/data/templateValidation.ts"
 
 # --- 10) reportPDF.ts — NEW shared GRI/ISO PDF generators -----------------
 echo "10/13 Adding NEW src/components/sa/reportPDF.ts (shared PDF generators)"
 cp "$SCRIPT_DIR/patched/src/components/sa/reportPDF.ts" "src/components/sa/reportPDF.ts"
 
 # --- 10b) CDBReportTemplates.tsx — full wizard (Report Templates module) --
-echo "10b/13 Patching src/components/sa/CDBReportTemplates.tsx (template wizard)"
+echo "10b/15 Patching src/components/sa/CDBReportTemplates.tsx (template wizard)"
 cp "$SCRIPT_DIR/patched/src/components/sa/CDBReportTemplates.tsx" "src/components/sa/CDBReportTemplates.tsx"
 
-# --- 11) Customer ActivityData.tsx patch ----------------------------------
-echo "11/13 Patching src/components/customer/ActivityData.tsx"
+# --- 10c) TemplateValidationDialog.tsx — NEW pre-gen validation modal ----
+echo "10c/15 Adding NEW src/components/sa/TemplateValidationDialog.tsx (validation modal)"
+cp "$SCRIPT_DIR/patched/src/components/sa/TemplateValidationDialog.tsx" "src/components/sa/TemplateValidationDialog.tsx"
 
-node - <<'NODE'
-const fs = require('fs');
-const path = 'src/components/customer/ActivityData.tsx';
-let src = fs.readFileSync(path, 'utf8');
+# --- 11) Customer ActivityData.tsx (full file — incl. ISO upload stamping) --
+echo "11/16 Patching src/components/customer/ActivityData.tsx (GRI seed swap + ISO upload stamping)"
+cp "$SCRIPT_DIR/patched/src/components/customer/ActivityData.tsx" "src/components/customer/ActivityData.tsx"
 
-// (a) Add import — idempotent
-const importLine = "import { mockSubmissions as seedSubmissions } from '../../data/seedActivitySubmissions';";
-if (!src.includes(importLine)) {
-  const anchor = "import { businessUnitsData, projectsData, type BusinessUnit as SharedBusinessUnit, type Project as SharedProject } from '../../data/businessUnitsData';";
-  if (!src.includes(anchor)) {
-    console.error('❌  Could not find the businessUnitsData import line — file may have changed shape.');
-    process.exit(1);
-  }
-  src = src.replace(anchor, anchor + '\n' + importLine);
-}
+# --- 12) ISO 14064-1 framework files (NEW) ---------------------------------
+echo "12/16 Adding NEW src/components/sa/isoStructureData.ts (ISO category tree)"
+cp "$SCRIPT_DIR/patched/src/components/sa/isoStructureData.ts" "src/components/sa/isoStructureData.ts"
 
-// (b) Replace the entire `export const mockSubmissions = businessUnitsData.map(...);` block
-//     The block runs from `export const mockSubmissions:` to the FIRST line that says `  });`
-//     (its closing). We do a regex replace with the simple drop-in.
-const blockRegex = /export const mockSubmissions:[\s\S]*?\n  \}\);\n/;
-if (!blockRegex.test(src)) {
-  // Maybe already patched? Skip silently if our marker is present.
-  if (src.includes('export const mockSubmissions = seedSubmissions;')) {
-    console.log('   (already patched — skipping)');
-  } else {
-    console.error('❌  Could not find the mockSubmissions block to replace.');
-    process.exit(1);
-  }
-} else {
-  src = src.replace(blockRegex, 'export const mockSubmissions = seedSubmissions;\n');
-}
+echo "13/16 Adding NEW src/components/sa/isoActivitiesData.ts (16 ISO activities)"
+cp "$SCRIPT_DIR/patched/src/components/sa/isoActivitiesData.ts" "src/components/sa/isoActivitiesData.ts"
 
-fs.writeFileSync(path, src);
-console.log('   ActivityData.tsx patched ✓');
-NODE
+echo "14/16 Adding NEW src/data/isoBusinessUnits.ts (ISO BUs + project)"
+cp "$SCRIPT_DIR/patched/src/data/isoBusinessUnits.ts" "src/data/isoBusinessUnits.ts"
+
+echo "15/16 Adding NEW src/data/seedISOActivitySubmissions.ts (ISO uploads)"
+cp "$SCRIPT_DIR/patched/src/data/seedISOActivitySubmissions.ts" "src/data/seedISOActivitySubmissions.ts"
+
+# --- 16) businessUnitsData.ts — merge ISO BUs + project into the SoT --------
+echo "16/16 Patching src/data/businessUnitsData.ts (merges ISO BUs + project)"
+cp "$SCRIPT_DIR/patched/src/data/businessUnitsData.ts" "src/data/businessUnitsData.ts"
 
 echo
 echo "✅  All changes applied. Review with:"
@@ -131,7 +125,8 @@ echo "      git diff"
 echo
 echo "When happy, commit & push:"
 echo "      git add ."
-echo "      git commit -m 'feat: FY2025 interrelated mock data + dedicated formulas + Supabase seed'"
+echo "      git commit -m 'feat: ISO 14064-1 activity + report-template flow (FY2025)'"
 echo "      git push origin main"
 echo
-echo "Then run seed-supabase.sql once in your Supabase SQL editor."
+echo "Then run the SQL once in your Supabase SQL editor, in order:"
+echo "      seed-supabase.sql  →  seed-report-templates.sql  →  seed-supabase-iso.sql"

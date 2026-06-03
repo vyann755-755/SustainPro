@@ -26,6 +26,10 @@
  * This file contains activities that reference ACTUAL formulas and EFs from Master DB
  */
 
+// ISO 14064-1 framework activities are merged into `allActivities` at the bottom
+// of this file. (Type-only import in isoActivitiesData → no runtime cycle.)
+import { isoActivities } from './isoActivitiesData';
+
 export interface EFParameterMapping {
   parameterId: string;
   parameterName: string;
@@ -51,6 +55,10 @@ export interface ActivityDefinition {
   updatedBy?: string;
   status: 'active' | 'draft' | 'archived';
   source: 'master' | 'client';
+  /** Reporting standard this activity was created under. Absent = 'GRI' (legacy). */
+  framework?: 'GRI' | 'ISO';
+  /** ISO 14064-1 sub-category codes (e.g. ['1.1']). Empty/absent for GRI activities. */
+  isoCategories?: string[];
 }
 
 /**
@@ -121,20 +129,20 @@ export const allActivities: ActivityDefinition[] = [
     name: 'Table-3: Fugitive Emissions - Refrigerant',
     impactCategories: ['Climate Change - total (GWP)'],
     grpCategories: ['305.1.3'],
-    // References Master DB Formula: FORM-REF-FUG-2024-001 (dedicated, mass-balance)
-    formulaUID: 'FORM-REF-FUG-2024-001',
-    formulaName: 'Refrigerant Leakage',
-    // Uses expression: expr_mass_balance
-    expressionId: 'expr_mass_balance',
-    expressionName: 'Mass-Balance Method',
-    // Maps EF parameter to Master DB EF: EF-REF-GWP-2024-001 (R-410A GWP100)
+    // References Master DB Formula: FORM-FUE-NAT-2024-003 (reusing for fugitive emissions)
+    formulaUID: 'FORM-FUE-NAT-2024-003',
+    formulaName: 'Natural Gas Combustion',
+    // Uses expression: expr_net_emissions
+    expressionId: 'expr_net_emissions',
+    expressionName: 'Net Emissions',
+    // Maps EF parameter to Master DB EF: EF-FUE-GLB-2024-001
     efParameterMappings: [
       {
-        parameterId: 'param_gwp_factor',
-        parameterName: 'GWP100 (R-410A)',
-        unit: 'kg CO2e/kg',
-        efUID: 'EF-REF-GWP-2024-001',
-        efName: 'Refrigerant R-410A — IPCC AR6 GWP100'
+        parameterId: 'param_gas_ef',
+        parameterName: 'Natural Gas Emission Factor',
+        unit: 'kg CO2e/m³',
+        efUID: 'EF-FUE-GLB-2024-001',
+        efName: 'Natural Gas Combustion'
       }
     ],
     createdAt: '2024-01-15T12:00:00Z',
@@ -210,20 +218,20 @@ export const allActivities: ActivityDefinition[] = [
     name: 'Cat. 1: Purchased goods and services',
     impactCategories: ['Climate Change - total (GWP)'],
     grpCategories: ['305.3.1'],
-    // References Master DB Formula: FORM-PUR-GOO-2024-001 (dedicated, spend-based)
-    formulaUID: 'FORM-PUR-GOO-2024-001',
-    formulaName: 'Purchased Goods - Spend-based',
-    // Uses expression: expr_spend_based
-    expressionId: 'expr_spend_based',
-    expressionName: 'Spend-based Method',
-    // Maps EF parameter to Master DB EF: EF-SPEND-2024-001
+    // References Master DB Formula: FORM-TRA-VEH-2024-002 (reusing for simplicity)
+    formulaUID: 'FORM-TRA-VEH-2024-002',
+    formulaName: 'Vehicle Fleet Emissions',
+    // Uses expression: expr_distance_emissions
+    expressionId: 'expr_distance_emissions',
+    expressionName: 'Distance-Based Emissions',
+    // Maps EF parameter to Master DB EF: EF-TRA-2024-0007
     efParameterMappings: [
       {
-        parameterId: 'param_spend_ef',
-        parameterName: 'Spend-based EF (US EPA EEIO)',
-        unit: 'kg CO2e/USD',
-        efUID: 'EF-SPEND-2024-001',
-        efName: 'Purchased Goods — Spend-based (US EPA EEIO)'
+        parameterId: 'param_vehicle_ef',
+        parameterName: 'Transport Emission Factor',
+        unit: 'kg CO2e/km',
+        efUID: 'EF-TRA-2024-0007',
+        efName: 'Light Duty Vehicle - Gasoline'
       }
     ],
     createdAt: '2024-01-17T10:00:00Z',
@@ -237,20 +245,20 @@ export const allActivities: ActivityDefinition[] = [
     name: 'Cat. 2: Capital goods',
     impactCategories: ['Climate Change - total (GWP)'],
     grpCategories: ['305.3.2'],
-    // References Master DB Formula: FORM-CAP-GOO-2024-001 (dedicated, spend-based capex)
-    formulaUID: 'FORM-CAP-GOO-2024-001',
-    formulaName: 'Capital Goods - Spend-based',
-    // Uses expression: expr_capex_spend
-    expressionId: 'expr_capex_spend',
-    expressionName: 'Capital Expenditure Method',
-    // Maps EF parameter to Master DB EF: EF-CAPEX-2024-001
+    // References Master DB Formula: FORM-FUE-NAT-2024-003
+    formulaUID: 'FORM-FUE-NAT-2024-003',
+    formulaName: 'Natural Gas Combustion',
+    // Uses expression: expr_gross_emissions
+    expressionId: 'expr_gross_emissions',
+    expressionName: 'Gross Emissions',
+    // Maps EF parameter to Master DB EF: EF-FUE-GLB-2024-001
     efParameterMappings: [
       {
-        parameterId: 'param_capex_ef',
-        parameterName: 'Capex EF (US EPA EEIO)',
-        unit: 'kg CO2e/USD',
-        efUID: 'EF-CAPEX-2024-001',
-        efName: 'Capital Goods — Spend-based (US EPA EEIO)'
+        parameterId: 'param_gas_ef',
+        parameterName: 'Natural Gas Emission Factor',
+        unit: 'kg CO2e/m³',
+        efUID: 'EF-FUE-GLB-2024-001',
+        efName: 'Natural Gas Combustion'
       }
     ],
     createdAt: '2024-01-17T11:00:00Z',
@@ -363,3 +371,9 @@ export const allActivities: ActivityDefinition[] = [
     source: 'client'
   }
 ];
+
+// ─── ISO 14064-1 framework activities ───────────────────────────────────────
+// Folded into the single `allActivities` source so the Report-Template
+// "Map to Activity" picker, the template validator, and BU assignment all see
+// GRI + ISO activities together. (Import is at the top of this file.)
+allActivities.push(...isoActivities);

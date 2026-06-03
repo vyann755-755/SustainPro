@@ -828,6 +828,40 @@ function ReportTemplateEditor({ template, generations, projects, onCancel, onSav
         </TabsContent>
       </Tabs>
 
+      {/* Activity wiring reminder */}
+      {(() => {
+        const refs = new Set<string>();
+        structure.sections.forEach(s => s.rows.forEach(r => { if (r.activityUID) refs.add(r.activityUID); }));
+        if (refs.size === 0) return null;
+        return (
+          <Card className="border-blue-200 bg-blue-50">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-blue-900 flex-1">
+                  <strong>Activities used by this template ({refs.size}):</strong>
+                  <p className="mt-1">
+                    Before generating this report, make sure each of these activities is assigned
+                    to the Business Units in your BCA Project. Go to <strong>CDB · Business Units</strong>{' '}
+                    to manage assignments.
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {Array.from(refs).map(uid => {
+                      const a = allActivities.find(x => x.uid === uid);
+                      return (
+                        <Badge key={uid} variant="outline" className="bg-white border-blue-300 text-blue-800 text-xs font-mono">
+                          {uid}{a ? ` · ${a.name.slice(0, 40)}${a.name.length > 40 ? '…' : ''}` : ''}
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Validation banner */}
       {unmapped.length > 0 && (
         <Card className="border-amber-300 bg-amber-50">

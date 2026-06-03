@@ -19,6 +19,8 @@ import { toast } from 'sonner@2.0.3';
 import {
   isoTemplate,
   sumGRIValues,
+  getISOValue,
+  sumISOCategory,
   formatReportValue,
 } from '../../data/reportTemplates';
 import { type CustomTemplate, rowLabel as ctRowLabel, sectionTitle as ctSectionTitle } from '../../data/customTemplate';
@@ -162,9 +164,18 @@ export function ISOReportTable({
       return;
     }
     if (row.type === 'category-header') {
-      const total = row.griCategoryUIDs ? sumGRIValues(aggregate, row.griCategoryUIDs) : 0;
-      if (row.number) catTotals[row.number] += total;
-      else if (row.name.startsWith('Category 6')) catTotals['6'] += total;
+      const catKey = row.number || (row.name.startsWith('Category 6') ? '6' : '');
+      // GRI-derived (legacy) + ISO-native (direct) — one is 0 in a single-framework project.
+      const griPart = row.griCategoryUIDs ? sumGRIValues(aggregate, row.griCategoryUIDs) : 0;
+      const isoPart = catKey ? sumISOCategory(aggregate, catKey) : 0;
+      const total = griPart + isoPart;
+      if (catKey) {
+        // Sub-rows feed catTotals for categories 1–5; only add header-level
+        // contributions that have no sub-rows in the template (GRI Cat 6, ISO Cat 6).
+        const hasSubRows = ['1', '2', '3', '4', '5'].includes(catKey);
+        if (griPart) catTotals[catKey] += griPart;
+        if (!hasSubRows) catTotals[catKey] += isoPart;
+      }
       rows.push(
         <TableRow key={idx} className="bg-emerald-100">
           <TableCell className="font-bold text-emerald-900">{row.number || ''}</TableCell>
@@ -176,8 +187,9 @@ export function ISOReportTable({
       );
       return;
     }
-    // sub-row
-    const v = row.griCategoryUIDs ? sumGRIValues(aggregate, row.griCategoryUIDs) : 0;
+    // sub-row — GRI-derived (legacy) + ISO-native (direct by row number)
+    const v = (row.griCategoryUIDs ? sumGRIValues(aggregate, row.griCategoryUIDs) : 0)
+            + (row.number ? getISOValue(aggregate, row.number) : 0);
     if (row.number) {
       const cat = row.number.split('.')[0];
       if (catTotals[cat] !== undefined) catTotals[cat] += v;

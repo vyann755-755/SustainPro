@@ -200,6 +200,32 @@ export function sumGRIValues(calculatedData: any[] | undefined, griCategories: s
   return griCategories.reduce((sum, c) => sum + getGRIValue(calculatedData, c), 0);
 }
 
+// ─── ISO-native aggregation ─────────────────────────────────────────────────
+// For activities created under the ISO framework, submissions carry the ISO
+// sub-category directly (d.framework === 'ISO', d.isoSubcategory === '1.1').
+// These helpers let the ISO report read those rows WITHOUT going through the
+// GRI→ISO derivation. Both paths can coexist: a row's value is the sum of the
+// ISO-direct contribution and the GRI-derived contribution (one is 0 in a
+// single-framework project).
+
+/** Sum ISO-native rows whose isoSubcategory matches (e.g. '1.1'). */
+export function getISOValue(calculatedData: any[] | undefined, isoSubcategory: string): number {
+  if (!calculatedData) return 0;
+  return calculatedData
+    .filter((a) => a.framework === 'ISO' && a.isoSubcategory === isoSubcategory)
+    .reduce((sum, a) => sum + (Number(a.calculatedValue) || 0), 0);
+}
+
+/** Sum every ISO-native row in a category number (e.g. '1' → 1.1, 1.2, …). */
+export function sumISOCategory(calculatedData: any[] | undefined, categoryNumber: string): number {
+  if (!calculatedData) return 0;
+  return calculatedData
+    .filter((a) => a.framework === 'ISO' &&
+      (a.isoCategoryNumber === categoryNumber ||
+       (typeof a.isoSubcategory === 'string' && a.isoSubcategory.split('.')[0] === categoryNumber)))
+    .reduce((sum, a) => sum + (Number(a.calculatedValue) || 0), 0);
+}
+
 export function formatReportValue(value: number): string {
   if (!value || value === 0) return '—';
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
