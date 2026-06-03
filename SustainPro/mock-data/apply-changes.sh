@@ -115,8 +115,16 @@ echo "15/16 Adding NEW src/data/seedISOActivitySubmissions.ts (ISO uploads)"
 cp "$SCRIPT_DIR/patched/src/data/seedISOActivitySubmissions.ts" "src/data/seedISOActivitySubmissions.ts"
 
 # --- 16) businessUnitsData.ts — merge ISO BUs + project into the SoT --------
-echo "16/16 Patching src/data/businessUnitsData.ts (merges ISO BUs + project)"
+echo "16/18 Patching src/data/businessUnitsData.ts (merges ISO BUs + project)"
 cp "$SCRIPT_DIR/patched/src/data/businessUnitsData.ts" "src/data/businessUnitsData.ts"
+
+# --- 17) CDBActivities.tsx — GRI/ISO framework toggle in Create Activity ----
+echo "17/18 Patching src/components/sa/CDBActivities.tsx (GRI/ISO framework toggle)"
+cp "$SCRIPT_DIR/patched/src/components/sa/CDBActivities.tsx" "src/components/sa/CDBActivities.tsx"
+
+# --- 18) ISOCategorySelector.tsx — NEW ISO category picker ------------------
+echo "18/18 Adding NEW src/components/sa/ISOCategorySelector.tsx (ISO category picker)"
+cp "$SCRIPT_DIR/patched/src/components/sa/ISOCategorySelector.tsx" "src/components/sa/ISOCategorySelector.tsx"
 
 echo
 echo "✅  All changes applied. Review with:"

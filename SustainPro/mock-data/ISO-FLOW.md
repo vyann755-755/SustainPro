@@ -142,7 +142,9 @@ The ISO data is folded into the **single sources of truth** (`allActivities`, `b
 | `patched/src/data/reportTemplates.ts` | `src/data/` | **PATCHED.** Adds `getISOValue` + `sumISOCategory`. |
 | `patched/src/components/sa/ISOReportTable.tsx` | `src/components/sa/` | **PATCHED.** Default ISO report = GRI-derived **+** ISO-native; custom path unchanged (by `activityUID`). |
 | `patched/src/components/sa/BCAProjects.tsx` | `src/components/sa/` | **PATCHED.** "Report to Generate" selector + required BU re-selection + ISO project row. |
-| `patched/src/components/customer/ActivityData.tsx` | `src/components/customer/` | **PATCHED.** Customer upload stamps ISO fields (`framework`/`isoSubcategory`…) for ISO activities instead of a bogus GRI code. |
+| `patched/src/components/customer/ActivityData.tsx` | `src/components/customer/` | **PATCHED.** Customer upload stamps ISO fields; **loads SA-created projects + BU links from Supabase** so customers can see/work on them. |
+| `patched/src/components/sa/CDBActivities.tsx` | `src/components/sa/` | **PATCHED.** Adds the **GRI / ISO framework toggle** to Create Activity + ISO category picker + framework-aware list/view. |
+| `patched/src/components/sa/ISOCategorySelector.tsx` | `src/components/sa/` | **NEW.** ISO 14064-1 category picker (parallels `GRICategorySelector`), bound to `isoStructure`. |
 | `seed-supabase-iso.sql` | run in Supabase | **NEW.** ISO project + 3 BU links + 3 ISO submissions + 1 `report_generations` row. |
 
 ---
@@ -186,6 +188,18 @@ All edits are additive and backwards-compatible — existing GRI activities, pro
 2. **Validator / BU roster blind to ISO** — `templateValidation` and the validation dialog read `businessUnitsData`/`mockBusinessUnits`, which lacked the ISO BUs → every ISO mapping reported a false "blocking gap". *Fixed* by merging ISO BUs into `businessUnitsData`.
 3. **Double-counted BUs** — the first-pass `BCAProjects` change spread `isoBusinessUnits` on top of `mockBusinessUnits`; once the source-of-truth merge landed, that would list each ISO BU twice. *Fixed* by reverting to `const mockBUs = mockBusinessUnits`.
 4. **Live customer uploads injected a bogus GRI code** — `ActivityData` stamped only GRI fields and fell back to `305.<scope>.1` for activities with no `grpCategories` → live ISO uploads never aggregated in the ISO report and polluted GRI. *Fixed* by branching on framework and stamping `framework`/`isoCategoryNumber`/`isoCategory`/`isoSubcategory` for ISO activities (and grouping the customer preview by ISO category).
+
+---
+
+## 6b · Round-2 fixes (activity ISO picker + customer project visibility)
+
+**1 · Activity module now offers ISO, not just GRI.** `CDBActivities.tsx` (the Create Activity wizard) only rendered `<GRICategorySelector>`. Added a **GRI / ISO toggle** in Step 1: GRI shows the GRI picker (writes `grpCategories`), ISO shows the new `<ISOCategorySelector>` (writes `isoCategories`, framework `'ISO'`). Validation, the Next-button guard, save, and the list/view badges are all framework-aware. New `framework`/`isoCategories` persist on the activity (fields already on `ActivityDefinition`).
+
+**2 · Customer users can now see SA-created BCA projects.** Root cause: `BCAProjects` created projects in React state only (and with a non-UUID id) — nothing was written to Supabase, and the customer's project list was a static array, so new projects never reached customers.
+  - `BCAProjects.tsx` — create/edit/delete now **persist to Supabase** `projects` + `project_business_units` (with a real UUID id), and a mount loader merges Supabase projects into the list.
+  - `ActivityData.tsx` (customer) — loads `projects` + `project_business_units` from Supabase, merges with the seed list (`availableProjects`), and resolves each project's BUs from a `projectId → BU-ids` map built from **both** seed `BU.projectId` and the Supabase links. So a customer under an assigned BU sees the project, can download the Excel template (built from that BU's activities), fill variables, and upload — the submission writes to `activity_submissions` for that `project_id`/`business_unit_id`.
+
+> Requires the `projects` + `project_business_units` tables from `seed-supabase.sql` (already in the schema). No new migration.
 
 ---
 

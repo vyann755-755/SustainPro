@@ -288,6 +288,64 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
   const [isLoadingBackendData, setIsLoadingBackendData] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
+  // SA-created projects + their BU assignments, loaded from Supabase, so a
+  // Customer user can see and work on projects the SA created (not just seeds).
+  const [dynamicProjects, setDynamicProjects] = useState<Project[]>([]);
+  const [projectBULinks, setProjectBULinks] = useState<{ project_id: string; business_unit_id: string }[]>([]);
+
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const [{ data: projRows }, { data: links }] = await Promise.all([
+          supabase.from('projects').select('*'),
+          supabase.from('project_business_units').select('*'),
+        ]);
+        if (links) setProjectBULinks(links as any);
+        if (projRows) {
+          const seedIds = new Set(mockProjects.map((p) => p.id));
+          setDynamicProjects(
+            projRows
+              .filter((r: any) => !seedIds.has(r.id))
+              .map((r: any) => ({
+                id: r.id,
+                name: r.name,
+                description: r.description || '',
+                year: r.year,
+                status: (r.status === 'in_progress' ? 'in-progress' : r.status) as any,
+                type: 'BCA',
+                createdAt: r.created_at,
+                createdBy: 'sa_user',
+              }))
+          );
+        }
+      } catch (e) {
+        console.error('Failed to load projects from Supabase:', e);
+      }
+    })();
+  }, [refreshTrigger]);
+
+  // Seed projects + SA-created projects, de-duped by id.
+  const availableProjects: Project[] = React.useMemo(() => {
+    const byId = new Map<string, Project>(mockProjects.map((p) => [p.id, p]));
+    dynamicProjects.forEach((p) => { if (!byId.has(p.id)) byId.set(p.id, p); });
+    return Array.from(byId.values());
+  }, [dynamicProjects]);
+
+  // projectId → Set(businessUnitId): from seed BU.projectId AND Supabase links.
+  const projectBUMap = React.useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    mockBusinessUnits.forEach((bu) => {
+      if (!bu.projectId) return;
+      if (!m.has(bu.projectId)) m.set(bu.projectId, new Set());
+      m.get(bu.projectId)!.add(bu.id);
+    });
+    projectBULinks.forEach((l) => {
+      if (!m.has(l.project_id)) m.set(l.project_id, new Set());
+      m.get(l.project_id)!.add(l.business_unit_id);
+    });
+    return m;
+  }, [projectBULinks]);
+
   // Update filters when initial values change
   React.useEffect(() => {
     if (initialProjectId) {
@@ -321,7 +379,7 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
           const submission: BusinessUnitDataSubmission = {
             id: dbData.id,
             projectId: dbData.project_id,
-            projectName: mockProjects.find(p => p.id === dbData.project_id)?.name || dbData.project_id,
+            projectName: availableProjects.find(p => p.id === dbData.project_id)?.name || dbData.project_id,
             businessUnitId: dbData.business_unit_id,
             businessUnitName: mockBusinessUnits.find(bu => bu.id === dbData.business_unit_id)?.name || dbData.business_unit_id,
             businessUnitUID: mockBusinessUnits.find(bu => bu.id === dbData.business_unit_id)?.uid || dbData.business_unit_id,
@@ -356,13 +414,14 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
   };
 
   // Get filtered business units based on selected project
+  // (uses seed BU.projectId AND Supabase project_business_units links)
   const filteredBusinessUnits = selectedProjectId
-    ? mockBusinessUnits.filter(bu => bu.projectId === selectedProjectId)
+    ? mockBusinessUnits.filter(bu => projectBUMap.get(selectedProjectId)?.has(bu.id))
     : [];
 
   // Get business units for view tab
   const viewFilteredBusinessUnits = viewProjectId
-    ? mockBusinessUnits.filter(bu => bu.projectId === viewProjectId)
+    ? mockBusinessUnits.filter(bu => projectBUMap.get(viewProjectId)?.has(bu.id))
     : [];
 
   // Get submissions for the selected BU (use uploaded submissions which includes mock + new uploads)
@@ -393,7 +452,7 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
     }
 
     const selectedBU = mockBusinessUnits.find(bu => bu.id === selectedBUId);
-    const selectedProject = mockProjects.find(p => p.id === selectedProjectId);
+    const selectedProject = availableProjects.find(p => p.id === selectedProjectId);
     
     if (!selectedBU || !selectedProject) return;
 
@@ -645,7 +704,7 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
     }
 
     const selectedBU = mockBusinessUnits.find(bu => bu.id === selectedBUId);
-    const selectedProject = mockProjects.find(p => p.id === selectedProjectId);
+    const selectedProject = availableProjects.find(p => p.id === selectedProjectId);
     
     if (!selectedBU || !selectedProject) return;
 
@@ -813,10 +872,10 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
     }
   };
 
-  const selectedProject = mockProjects.find(p => p.id === selectedProjectId);
+  const selectedProject = availableProjects.find(p => p.id === selectedProjectId);
   const selectedBU = mockBusinessUnits.find(bu => bu.id === selectedBUId);
   
-  const viewSelectedProject = mockProjects.find(p => p.id === viewProjectId);
+  const viewSelectedProject = availableProjects.find(p => p.id === viewProjectId);
   const viewSelectedBU = mockBusinessUnits.find(bu => bu.id === viewBUId);
 
   // Get the most recent submission for display - prioritize backend data
@@ -879,7 +938,7 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
                       <SelectValue placeholder="Select a project" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockProjects.map(project => (
+                      {availableProjects.map(project => (
                         <SelectItem key={project.id} value={project.id}>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-xs">
@@ -1094,7 +1153,7 @@ export function ActivityData({ initialProjectId = '', initialBUId = '', onClearS
                       <SelectValue placeholder="Select a project" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockProjects.map(project => (
+                      {availableProjects.map(project => (
                         <SelectItem key={project.id} value={project.id}>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="text-xs">

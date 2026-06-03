@@ -250,6 +250,38 @@ export function BCAProjects() {
       .order('created_at', { ascending: false })
       .then(({ data }) => { if (data) setCustomTemplates(data); });
   }, []);
+
+  // Load SA-created projects from Supabase and merge with the seed list, so
+  // projects persist across reloads AND are visible to Customer users.
+  useEffect(() => {
+    (async () => {
+      const { data: projRows } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (!projRows || projRows.length === 0) return;
+      const { data: links } = await supabase.from('project_business_units').select('*');
+      setProjects((prev) => {
+        const byId = new Map(prev.map((p) => [p.id, p]));
+        projRows.forEach((row: any) => {
+          if (byId.has(row.id)) return; // keep the rich seed entry
+          const assignedBUs = (links || [])
+            .filter((l: any) => l.project_id === row.id)
+            .map((l: any) => l.business_unit_id);
+          byId.set(row.id, {
+            id: row.id,
+            name: row.name,
+            description: row.description || '',
+            year: row.year,
+            assignedBUs,
+            status: (row.status === 'in_progress' ? 'in-progress' : row.status) as BCAProject['status'] || 'draft',
+            createdAt: (row.created_at || '').split('T')[0],
+          });
+        });
+        return Array.from(byId.values());
+      });
+    })();
+  }, []);
   const [selectedBUView, setSelectedBUView] = useState<{
     projectId: string;
     projectName: string;
@@ -350,7 +382,7 @@ export function BCAProjects() {
     project.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!formData.name.trim()) {
       toast.error('Please provide a project name');
       return;
@@ -360,8 +392,15 @@ export function BCAProjects() {
       return;
     }
 
+    // Real UUID so it is a valid projects.id and activity_submissions.project_id FK.
+    const newId = (globalThis.crypto?.randomUUID?.() ||
+      'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+      }));
+
     const newProject: BCAProject = {
-      id: Date.now().toString(),
+      id: newId,
       name: formData.name,
       description: formData.description,
       year: formData.year,
@@ -371,19 +410,45 @@ export function BCAProjects() {
       status: 'draft',
       createdAt: new Date().toISOString().split('T')[0]
     };
-    
+
+    // Persist to Supabase so Customer users (and reloads) can see the project.
+    try {
+      const { error: pErr } = await supabase.from('projects').insert({
+        id: newId,
+        name: newProject.name,
+        description: newProject.description,
+        year: newProject.year,
+        status: 'in_progress',
+      });
+      if (pErr) throw pErr;
+      if (formData.assignedBUs.length > 0) {
+        const { error: bErr } = await supabase.from('project_business_units').insert(
+          formData.assignedBUs.map((buId) => ({ project_id: newId, business_unit_id: buId }))
+        );
+        if (bErr) throw bErr;
+      }
+    } catch (e: any) {
+      console.error('Project create failed:', e);
+      toast.error('Failed to save project to Supabase', { description: e.message });
+      return;
+    }
+
     setProjects([...projects, newProject]);
     setIsCreateDialogOpen(false);
     resetForm();
-    
+
     toast.success(`Project "${newProject.name}" created successfully`, {
-      description: `${newProject.assignedBUs.length} business ${newProject.assignedBUs.length === 1 ? 'unit' : 'units'} assigned - calculations will be triggered automatically`
+      description: `${newProject.assignedBUs.length} business ${newProject.assignedBUs.length === 1 ? 'unit' : 'units'} assigned — Customer users can now upload data for it`
     });
   };
 
-  const handleEdit = () => {
+  const handleEdit = async () => {
     if (!selectedProject || !formData.name.trim()) {
       toast.error('Please provide a project name');
+      return;
+    }
+    if (formData.assignedBUs.length === 0) {
+      toast.error('Select at least one business unit for this report');
       return;
     }
 
@@ -399,7 +464,25 @@ export function BCAProjects() {
           }
         : p
     );
-    
+
+    // Persist edits (name/description + BU assignments) to Supabase.
+    try {
+      await supabase.from('projects').update({
+        name: formData.name,
+        description: formData.description,
+        updated_at: new Date().toISOString(),
+      }).eq('id', selectedProject.id);
+      await supabase.from('project_business_units').delete().eq('project_id', selectedProject.id);
+      if (formData.assignedBUs.length > 0) {
+        await supabase.from('project_business_units').insert(
+          formData.assignedBUs.map((buId) => ({ project_id: selectedProject.id, business_unit_id: buId }))
+        );
+      }
+    } catch (e: any) {
+      console.error('Project update failed:', e);
+      // Non-fatal for the seed projects that may not exist in Supabase yet.
+    }
+
     setProjects(updatedProjects);
     setIsEditDialogOpen(false);
     setSelectedProject(null);
@@ -410,8 +493,14 @@ export function BCAProjects() {
     });
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!selectedProject) return;
+
+    try {
+      await supabase.from('projects').delete().eq('id', selectedProject.id);
+    } catch (e) {
+      console.error('Project delete failed:', e);
+    }
 
     setProjects(projects.filter(p => p.id !== selectedProject.id));
     setIsDeleteDialogOpen(false);
