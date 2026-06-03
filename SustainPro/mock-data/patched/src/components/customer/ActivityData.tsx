@@ -206,8 +206,6 @@ const mockActivityTemplates: ActivityTemplate[] = (() => {
 
 export const mockSubmissions = seedSubmissions;
 
-  });
-
 // Helper function to group activities by GRI category
 interface GroupedActivity {
   category: string;
