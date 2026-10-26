@@ -270,7 +270,7 @@ export const isoActivities: FrameworkActivityDefinition[] = [
     impactCategories: ['Climate Change - total (GWP)'],
     formulaUID: 'FORM-PUR-GOO-2024-001',
     formulaName: 'Purchased Goods - Spend-based',
-    expressionId: 'expr_spend_emissions',
+    expressionId: 'expr_spend_based',
     expressionName: 'Spend-Based Emissions',
     efParameterMappings: [
       { parameterId: 'param_spend_ef', parameterName: 'Spend Emission Factor', unit: 'kg CO2e/USD', efUID: 'EF-SPD-GOO-2024-001', efName: 'Purchased Goods — Spend-based' },
@@ -290,7 +290,7 @@ export const isoActivities: FrameworkActivityDefinition[] = [
     impactCategories: ['Climate Change - total (GWP)'],
     formulaUID: 'FORM-CAP-GOO-2024-001',
     formulaName: 'Capital Goods - Spend-based',
-    expressionId: 'expr_spend_emissions',
+    expressionId: 'expr_capex_spend',
     expressionName: 'Spend-Based Emissions',
     efParameterMappings: [
       { parameterId: 'param_capex_ef', parameterName: 'Capex Emission Factor', unit: 'kg CO2e/USD', efUID: 'EF-SPD-CAP-2024-001', efName: 'Capital Goods — Spend-based' },
@@ -378,7 +378,7 @@ export const isoActivities: FrameworkActivityDefinition[] = [
     impactCategories: ['Climate Change - total (GWP)'],
     formulaUID: 'FORM-PUR-GOO-2024-001',
     formulaName: 'Purchased Goods - Spend-based',
-    expressionId: 'expr_spend_emissions',
+    expressionId: 'expr_spend_based',
     expressionName: 'Spend-Based Emissions',
     efParameterMappings: [
       { parameterId: 'param_spend_ef', parameterName: 'Spend Emission Factor', unit: 'kg CO2e/USD', efUID: 'EF-SPD-GOO-2024-001', efName: 'Purchased Goods — Spend-based' },

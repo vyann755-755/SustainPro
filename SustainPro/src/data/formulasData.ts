@@ -773,6 +773,246 @@ export const masterFormulas: FormulaDefinition[] = [
         isActive: true
       }
     ]
+  },
+
+  // ============================================
+  // FORMULA 13: Industrial Process Emissions (ISO 14064-1 Cat. 1.3)
+  // ============================================
+  {
+    id: 'form-pro-cal',
+    uid: 'FORM-PRO-CAL-2025-001',
+    name: 'Industrial Process Emissions',
+    description: 'Calculate direct process emissions (e.g. calcination) from the mass of material processed.',
+    category: 'Process - Industrial',
+    tags: ['scope-1', 'process', 'calcination', 'iso-14064'],
+    status: 'active',
+    database: 'master',
+    createdBy: 'admin',
+    createdAt: '2025-01-08T09:00:00Z',
+    expressions: [
+      {
+        id: 'expr_process_emissions',
+        name: 'Process Emissions (mass-based)',
+        expression: 'process_mass * process_ef',
+        parameters: [
+          {
+            id: 'param_process_mass',
+            name: 'process_mass',
+            type: 'number',
+            unit: 'kg',
+            required: true,
+            description: 'Annual mass of raw material processed (e.g. limestone calcined)',
+            minValue: 0,
+            parameterType: 'variable'
+          },
+          {
+            id: 'param_process_ef',
+            name: 'process_ef',
+            type: 'number',
+            unit: 'kg CO2e/kg',
+            required: true,
+            description: 'Process emission factor per kg of material',
+            parameterType: 'ef_value',
+            efUID: 'EF-PRO-CAL-2025-001'
+          }
+        ],
+        sourceName: 'IPCC 2006 Guidelines · Vol. 3 Industrial Processes',
+        sourceURL: 'https://www.ipcc-nggip.iges.or.jp/public/2006gl/vol3.html',
+        isActive: true
+      }
+    ]
+  },
+
+  // ============================================
+  // FORMULA 14: Imported Steam Emissions (ISO 14064-1 Cat. 2.2)
+  // ============================================
+  {
+    id: 'form-ene-stm',
+    uid: 'FORM-ENE-STM-2025-001',
+    name: 'Imported Steam Emissions',
+    description: 'Calculate indirect emissions from imported steam, heat or district heating.',
+    category: 'Energy - Steam & Heat',
+    tags: ['scope-2', 'steam', 'district-heat', 'iso-14064'],
+    status: 'active',
+    database: 'master',
+    createdBy: 'admin',
+    createdAt: '2025-01-08T09:00:00Z',
+    expressions: [
+      {
+        id: 'expr_total_emissions',
+        name: 'Total CO2 Emissions',
+        expression: 'steam_consumption * steam_ef',
+        parameters: [
+          {
+            id: 'param_steam_consumption',
+            name: 'steam_consumption',
+            type: 'number',
+            unit: 'kWh',
+            required: true,
+            description: 'Annual imported steam / district heat consumed',
+            minValue: 0,
+            parameterType: 'variable'
+          },
+          {
+            id: 'param_steam_ef',
+            name: 'steam_ef',
+            type: 'number',
+            unit: 'kg CO2e/kWh',
+            required: true,
+            description: 'Steam / district heat emission factor',
+            parameterType: 'ef_value',
+            efUID: 'EF-ENE-STM-2025-001'
+          }
+        ],
+        sourceName: 'GHG Protocol Scope 2 Guidance',
+        sourceURL: 'https://ghgprotocol.org/scope_2_guidance',
+        isActive: true
+      }
+    ]
+  },
+
+  // ============================================
+  // FORMULA 15: Waste Disposal Emissions (ISO 14064-1 Cat. 4.3)
+  // ============================================
+  {
+    id: 'form-was-lan',
+    uid: 'FORM-WAS-LAN-2025-001',
+    name: 'Waste Disposal Emissions',
+    description: 'Calculate emissions from disposal of solid and liquid waste by mass.',
+    category: 'Scope 3 - Waste',
+    tags: ['scope-3', 'waste', 'landfill', 'iso-14064'],
+    status: 'active',
+    database: 'master',
+    createdBy: 'admin',
+    createdAt: '2025-01-08T09:00:00Z',
+    expressions: [
+      {
+        id: 'expr_mass_emissions',
+        name: 'Mass-Based Emissions',
+        expression: 'waste_mass * waste_ef',
+        parameters: [
+          {
+            id: 'param_waste_mass',
+            name: 'waste_mass',
+            type: 'number',
+            unit: 'ton',
+            required: true,
+            description: 'Annual mass of waste sent for disposal',
+            minValue: 0,
+            parameterType: 'variable'
+          },
+          {
+            id: 'param_waste_ef',
+            name: 'waste_ef',
+            type: 'number',
+            unit: 'kg CO2e/ton',
+            required: true,
+            description: 'Waste disposal emission factor',
+            parameterType: 'ef_value',
+            efUID: 'EF-WAS-LAN-2025-001'
+          }
+        ],
+        sourceName: 'GHG Protocol Scope 3 Standard · Category 5',
+        sourceURL: 'https://ghgprotocol.org/standards/scope-3-standard',
+        isActive: true
+      }
+    ]
+  },
+
+  // ============================================
+  // FORMULA 16: Product Use-Phase Emissions (ISO 14064-1 Cat. 5.1)
+  // ============================================
+  {
+    id: 'form-use-prd',
+    uid: 'FORM-USE-PRD-2025-001',
+    name: 'Product Use-Phase Emissions',
+    description: 'Calculate lifetime use-phase emissions of products sold, per unit sold.',
+    category: 'Scope 3 - Use of Sold Products',
+    tags: ['scope-3', 'downstream', 'use-phase', 'iso-14064'],
+    status: 'active',
+    database: 'master',
+    createdBy: 'admin',
+    createdAt: '2025-01-08T09:00:00Z',
+    expressions: [
+      {
+        id: 'expr_unit_emissions',
+        name: 'Unit-Based Emissions',
+        expression: 'units_sold * use_ef',
+        parameters: [
+          {
+            id: 'param_units_sold',
+            name: 'units_sold',
+            type: 'number',
+            unit: 'unit',
+            required: true,
+            description: 'Number of products sold in the reporting year',
+            minValue: 0,
+            parameterType: 'variable'
+          },
+          {
+            id: 'param_use_ef',
+            name: 'use_ef',
+            type: 'number',
+            unit: 'kg CO2e/unit',
+            required: true,
+            description: 'Lifetime use-phase emissions per unit sold',
+            parameterType: 'ef_value',
+            efUID: 'EF-USE-PRD-2025-001'
+          }
+        ],
+        sourceName: 'GHG Protocol Scope 3 Standard · Category 11',
+        sourceURL: 'https://ghgprotocol.org/standards/scope-3-standard',
+        isActive: true
+      }
+    ]
+  },
+
+  // ============================================
+  // FORMULA 17: Product End-of-Life Emissions (ISO 14064-1 Cat. 5.3)
+  // ============================================
+  {
+    id: 'form-eol-prd',
+    uid: 'FORM-EOL-PRD-2025-001',
+    name: 'Product End-of-Life Emissions',
+    description: 'Calculate end-of-life treatment emissions of products sold, per unit sold.',
+    category: 'Scope 3 - End-of-Life',
+    tags: ['scope-3', 'downstream', 'end-of-life', 'iso-14064'],
+    status: 'active',
+    database: 'master',
+    createdBy: 'admin',
+    createdAt: '2025-01-08T09:00:00Z',
+    expressions: [
+      {
+        id: 'expr_unit_emissions',
+        name: 'Unit-Based Emissions',
+        expression: 'units_sold * eol_ef',
+        parameters: [
+          {
+            id: 'param_units_sold',
+            name: 'units_sold',
+            type: 'number',
+            unit: 'unit',
+            required: true,
+            description: 'Number of products sold in the reporting year',
+            minValue: 0,
+            parameterType: 'variable'
+          },
+          {
+            id: 'param_eol_ef',
+            name: 'eol_ef',
+            type: 'number',
+            unit: 'kg CO2e/unit',
+            required: true,
+            description: 'End-of-life treatment emissions per unit sold',
+            parameterType: 'ef_value',
+            efUID: 'EF-EOL-PRD-2025-001'
+          }
+        ],
+        sourceName: 'GHG Protocol Scope 3 Standard · Category 12',
+        sourceURL: 'https://ghgprotocol.org/standards/scope-3-standard',
+        isActive: true
+      }
+    ]
   }
 ];
 
@@ -787,8 +1027,14 @@ export function getFormulaByUID(uid: string): FormulaDefinition | undefined {
  * Helper function to get an expression from a formula
  */
 export function getExpression(formulaUID: string, expressionId: string): FormulaExpression | undefined {
-  const formula = getFormulaByUID(formulaUID);
-  return formula?.expressions.find(e => e.id === expressionId);
+  // Some UIDs have both a generic and a "dedicated" definition (e.g. FORM-REF-FUG-2024-001),
+  // so search every formula with this UID rather than only the first match.
+  for (const formula of masterFormulas) {
+    if (formula.uid !== formulaUID) continue;
+    const expression = formula.expressions.find(e => e.id === expressionId);
+    if (expression) return expression;
+  }
+  return undefined;
 }
 
 /**
