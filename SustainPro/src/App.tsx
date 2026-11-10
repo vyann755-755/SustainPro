@@ -3,7 +3,7 @@ import { Sidebar } from './components/Sidebar';
 import { MasterDBProvider } from './contexts/MasterDBContext';
 import { Login } from './components/Login';
 import { AdminLandingDashboard } from './components/admin/AdminLandingDashboard';
-import { SALandingDashboard } from './components/sa/SALandingDashboard';
+import { SGHDashboard } from './components/sa/sgh/SGHDashboard';
 import { CustomerLandingDashboard } from './components/customer/CustomerLandingDashboard';
 import { ClientAdminLandingDashboard } from './components/client-admin/ClientAdminLandingDashboard';
 import { UserManagement } from './components/client-admin/UserManagement';
@@ -180,7 +180,7 @@ export default function App() {
       if (currentRole === 'admin') {
         return <AdminLandingDashboard username={username} onNavigate={handleNavigateFromDashboard} />;
       } else if (currentRole === 'sa') {
-        return <SALandingDashboard username={username} onNavigate={handleNavigateFromDashboard} />;
+        return <SGHDashboard />;
       } else if (currentRole === 'client-admin') {
         return <ClientAdminLandingDashboard username={username} onNavigate={handleNavigateFromDashboard} />;
       } else {
