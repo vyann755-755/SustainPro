@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { SGHOverview } from './SGHOverview';
 import { SGHDataUpload } from './SGHDataUpload';
-import { computeOverview, sampleDataset, type Scope2Method } from './sghData';
+import { computeOverview, sampleDataset } from './sghData';
 
 type Tab = 'overview' | 'upload';
 
@@ -11,9 +11,8 @@ const selectCls = 'h-10 rounded-[10px] border border-[#C9D8D0] bg-white px-2.5 t
 /** Sustainability Architect dashboard for SGH: KPI overview plus source-file upload. */
 export function SGHDashboard() {
   const [tab, setTab] = useState<Tab>('overview');
-  const [method, setMethod] = useState<Scope2Method>('location');
   const data = sampleDataset;
-  const overview = useMemo(() => computeOverview(data, method), [data, method]);
+  const overview = useMemo(() => computeOverview(data), [data]);
 
   return (
     <div className="flex flex-col gap-6 font-sans text-[#10231C]">
@@ -58,7 +57,7 @@ export function SGHDashboard() {
       </div>
 
       {tab === 'overview'
-        ? <SGHOverview data={data} overview={overview} method={method} onMethodChange={setMethod} />
+        ? <SGHOverview data={data} overview={overview} />
         : <SGHDataUpload onViewDashboard={() => setTab('overview')} />}
     </div>
   );
