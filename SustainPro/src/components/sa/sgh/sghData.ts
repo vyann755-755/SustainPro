@@ -17,11 +17,17 @@ export interface EmissionSource {
   color: string;
 }
 
-export interface BlockEmissions {
+/** Emission factors from SGH's EF data rows (Data_Rows_Template.xlsx), kgCO2e per functional unit. */
+export const EMISSION_FACTORS = {
+  electricity: { uid: 'EF-2027-00005', kgCO2ePerUnit: 0.402, unit: 'kWh', reference: 'EMA 2026' },
+  water: { uid: 'EF-2027-00006', kgCO2ePerUnit: 0.5662, unit: 'm³', reference: 'SEFR 2026' },
+} as const;
+
+/** Block-level consumption. Only electricity and water are metered per block. */
+export interface BlockUtilities {
   name: string;
-  scope1: number;
-  scope2: number;
-  scope3: number;
+  electricityKWh: number;
+  waterM3: number;
 }
 
 export interface ResourceSeries {
@@ -46,7 +52,7 @@ export interface SGHDataset {
   previousScopes: { 1: number; 2: number; 3: number };
   /** Total emissions 2021–2025, tCO2e. */
   emissionsHistory: number[];
-  blocks: BlockEmissions[];
+  blocks: BlockUtilities[];
   resources: ResourceSeries[];
   projection: { bau2035: number; predicted2035: number; targetReduction2030: number };
 }
@@ -70,11 +76,11 @@ export const sampleDataset: SGHDataset = {
   previousScopes: { 1: 5200, 2: 5900, 3: 1900 },
   emissionsHistory: [11800, 12700, 11000, 13000, 12000],
   blocks: [
-    { name: 'Block 1', scope1: 1400, scope2: 1450, scope3: 350 },
-    { name: 'Block 2', scope1: 1050, scope2: 1300, scope3: 350 },
-    { name: 'Block 3', scope1: 1000, scope2: 1150, scope3: 350 },
-    { name: 'Block 4', scope1: 800, scope2: 950, scope3: 350 },
-    { name: 'Block 5', scope1: 550, scope2: 550, scope3: 400 },
+    { name: 'Block 1', electricityKWh: 62_200, waterM3: 44_100 },
+    { name: 'Block 2', electricityKWh: 47_300, waterM3: 53_000 },
+    { name: 'Block 3', electricityKWh: 52_200, waterM3: 53_000 },
+    { name: 'Block 4', electricityKWh: 42_300, waterM3: 74_200 },
+    { name: 'Block 5', electricityKWh: 52_200, waterM3: 42_400 },
   ],
   resources: [
     {
@@ -131,18 +137,27 @@ export function computeOverview(data: SGHDataset) {
   const bau = projectPath(total, data.projection.bau2035, BAU_WOBBLE);
   const predicted = projectPath(total, data.projection.predicted2035, PREDICTED_WOBBLE);
 
-  const blocks = data.blocks
-    .map(b => ({ ...b, total: b.scope1 + b.scope2 + b.scope3 }))
-    .sort((a, b) => b.total - a.total);
-  const blockAverage = blocks.reduce((a, b) => a + b.total, 0) / blocks.length;
-
   const largest = [...data.sources].sort((a, b) => b.tCO2e - a.tCO2e)[0];
 
   return {
     total, previous, yoy: pctChange(total, previous), scopes, history,
     bau, predicted, target2030, predicted2030: predicted[5],
-    blocks, blockAverage, largest,
+    largest,
   };
 }
 
 export type Overview = ReturnType<typeof computeOverview>;
+
+/** Electricity (Scope 2) and water (Scope 3) emissions per block in tCO2e, highest first. */
+export function computeBlocks(data: SGHDataset) {
+  const t = (qty: number, ef: number) => (qty * ef) / 1000;
+  return data.blocks
+    .map(b => {
+      const electricity = t(b.electricityKWh, EMISSION_FACTORS.electricity.kgCO2ePerUnit);
+      const water = t(b.waterM3, EMISSION_FACTORS.water.kgCO2ePerUnit);
+      return { ...b, electricity, water, total: electricity + water };
+    })
+    .sort((a, b) => b.total - a.total);
+}
+
+export type BlockRow = ReturnType<typeof computeBlocks>[number];

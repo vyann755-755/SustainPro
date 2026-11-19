@@ -6,13 +6,14 @@ import {
 } from './sghData';
 
 /**
- * SGH dashboard overview, told as five chapters that follow the SGH mock-up:
- * headline KPIs → emissions profile → emissions trend → resource performance → block ranking.
+ * SGH dashboard overview for SGH as a whole, told as four chapters that follow the SGH mock-up:
+ * headline KPIs → emissions profile → emissions trend → resource performance.
+ * Block-level electricity and water are in SGHBlocks.
  * Each chapter opens with a one-line takeaway calculated from the data.
  */
 
-const card = 'bg-white border border-[#DCE7E1] rounded-2xl';
-const muted = 'text-[#4B5F57]';
+export const card = 'bg-white border border-[#DCE7E1] rounded-2xl';
+export const muted = 'text-[#4B5F57]';
 
 function Change({ cur, prev, label = 'vs 2024' }: { cur: number; prev: number; label?: string }) {
   const d = pctChange(cur, prev);
@@ -24,7 +25,7 @@ function Change({ cur, prev, label = 'vs 2024' }: { cur: number; prev: number; l
   );
 }
 
-function Chapter({ n, id, title, takeaway, children }: { n: number; id: string; title: string; takeaway: string; children: React.ReactNode }) {
+export function Chapter({ n, id, title, takeaway, children }: { n: number; id: string; title: string; takeaway: string; children: React.ReactNode }) {
   return (
     <section id={id} aria-labelledby={`${id}-h`} className="flex scroll-mt-6 flex-col gap-4">
       <div className="flex items-start gap-3">
@@ -39,10 +40,10 @@ function Chapter({ n, id, title, takeaway, children }: { n: number; id: string; 
   );
 }
 
-function LegendItem({ swatch, label }: { swatch: React.ReactNode; label: string }) {
+export function LegendItem({ swatch, label }: { swatch: React.ReactNode; label: string }) {
   return <span className="flex items-center gap-1.5">{swatch}{label}</span>;
 }
-const box = (c: string) => <span className="h-3 w-3 rounded-[3px]" style={{ background: c }} />;
+export const box = (c: string) => <span className="h-3 w-3 rounded-[3px]" style={{ background: c }} />;
 const line = (c: string, dashed = false) => <span className="w-[18px]" style={{ borderTop: `3px ${dashed ? 'dashed' : 'solid'} ${c}` }} />;
 
 /** Donut ring segments drawn with stroke-dasharray, starting at 12 o'clock. */
@@ -205,11 +206,6 @@ export function SGHOverview({ data, overview: ov }: { data: SGHDataset; overview
   const t4 = intensityFell === 3
     ? 'Use and intensity fell for energy, water and waste compared with 2024, but all three remain above their target trajectories.'
     : `${intensityFell} of 3 intensity measures improved compared with 2024.`;
-  const top = ov.blocks[0];
-  const t5 = `${top.name} has the highest emissions at ${fmt(top.total)} tCO₂e, ${((top.total / ov.total) * 100).toFixed(0)}% of the total.`;
-
-  const maxBlock = top.total * 1.05;
-
   return (
     <div className="flex flex-col gap-10 text-[#10231C]">
       <Chapter n={1} id="sgh-kpis" title={`How much did we emit in ${year}?`} takeaway={t1}>
@@ -314,36 +310,6 @@ export function SGHOverview({ data, overview: ov }: { data: SGHDataset; overview
         </div>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
           {data.resources.map(r => <ResourceCard key={r.key} r={r} />)}
-        </div>
-      </Chapter>
-
-      <Chapter n={5} id="sgh-blocks" title="Which blocks emit the most?" takeaway={t5}>
-        <div className={`${card} flex flex-col gap-4 px-6 py-5`}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="m-0 text-[15px] font-semibold">Organisational carbon emission ranking</h3>
-            <div className={`flex flex-wrap gap-4 text-xs ${muted}`}>
-              {([1, 2, 3] as const).map(s => <LegendItem key={s} swatch={box(SCOPE_COLORS[s])} label={`Scope ${s}`} />)}
-              <LegendItem swatch={<span className="h-3.5 border-l-2 border-dashed border-[#10231C]" />} label="Average per block" />
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <div className="flex min-w-[560px] flex-col gap-3.5 py-1">
-              {ov.blocks.map(b => (
-                <div key={b.name} className="grid grid-cols-[80px_minmax(0,1fr)_110px] items-center gap-4">
-                  <span className="text-sm font-semibold">{b.name}</span>
-                  <div className="relative h-6">
-                    <div className="flex h-full w-full">
-                      <div className="h-full rounded-l-md" style={{ width: `${(b.scope1 / maxBlock) * 100}%`, background: SCOPE_COLORS[1] }} />
-                      <div className="h-full" style={{ width: `${(b.scope2 / maxBlock) * 100}%`, background: SCOPE_COLORS[2] }} />
-                      <div className="h-full rounded-r-md" style={{ width: `${(b.scope3 / maxBlock) * 100}%`, background: SCOPE_COLORS[3] }} />
-                    </div>
-                    <div className="absolute -bottom-1 -top-1 border-l-2 border-dashed border-[#10231C] opacity-60" style={{ left: `${(ov.blockAverage / maxBlock) * 100}%` }} />
-                  </div>
-                  <span className="text-right text-sm font-semibold">{fmt(b.total)} <span className={`text-xs font-normal ${muted}`}>tCO₂e</span></span>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </Chapter>
 

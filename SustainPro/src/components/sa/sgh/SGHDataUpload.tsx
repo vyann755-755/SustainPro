@@ -28,7 +28,7 @@ const REQUIRED: RequiredData[] = [
   { key: 'sf6', name: 'Electrical insulating gas', detail: 'SF₆ top-ups (kg)', keywords: /sf6|sf₆|switchgear|insulating/i },
   { key: 'fire', name: 'Fire suppressant', detail: 'kg discharged or topped up', keywords: /fire|suppress|fm-?200|hfc-?227/i },
   { key: 'wastewater', name: 'Wastewater treatment', detail: 'm³ treated on site', keywords: /waste\s*water|wastewater|effluent|sewage/i },
-  { key: 'profile', name: 'Block profile', detail: 'Floor area, people per day, bed-days', keywords: /profile|floor area|gfa|bed-?day|occupan|pax|headcount/i },
+  { key: 'profile', name: 'SGH profile', detail: 'GFA (yearly); operational days, visitors and occupants per day (monthly)', keywords: /profile|floor area|gfa|operational days|visitor|occupan|pax/i },
 ];
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -114,8 +114,8 @@ export function SGHDataUpload({ onViewDashboard }: { onViewDashboard: () => void
     ...files.filter(f => f.error).map(f => ({ level: 'Error' as const, title: `${f.name}: ${f.error}`, body: 'Check the file opens in Excel, then upload it again.' })),
     ...files.filter(f => !f.error && !f.typeKey).map(f => ({ level: 'Error' as const, title: `Data type not recognised for ${f.name}`, body: 'Choose the data type in the Uploaded files table.' })),
     ...files.filter(f => !f.error && f.typeKey && f.months.length > 0 && f.months.length < 12).map(f => ({ level: 'Warning' as const, title: `${f.name} covers ${monthRange(f.months)} only`, body: 'Missing months are left empty in the dashboard.' })),
-    ...files.filter(f => !f.error && f.typeKey && f.typeKey !== 'profile' && f.blocks.length === 0).map(f => ({ level: 'Warning' as const, title: `No block names found in ${f.name}`, body: 'Rows must name the block (e.g. “Block 1”) to show per-block results.' })),
-    ...(missing.some(m => m.key === 'profile') ? [{ level: 'Error' as const, title: 'Block profile is missing: floor area, people per day and bed-days', body: 'Intensity KPIs (kWh/m², L/pax/day, kg/bed-day) can’t be calculated until it is uploaded.' }] : []),
+    ...files.filter(f => !f.error && (f.typeKey === 'electricity' || f.typeKey === 'water') && f.blocks.length === 0).map(f => ({ level: 'Warning' as const, title: `No block names found in ${f.name}`, body: 'Electricity and water rows must name the block (e.g. “Block 1”) for the Blocks view.' })),
+    ...(missing.some(m => m.key === 'profile') ? [{ level: 'Error' as const, title: 'SGH profile is missing: GFA, operational days, visitors and occupants per day', body: 'EUI, Water Efficiency Index and Waste Disposal Index can’t be calculated until it is uploaded.' }] : []),
   ];
   const errors = issues.filter(i => i.level === 'Error').length;
 
@@ -253,7 +253,7 @@ export function SGHDataUpload({ onViewDashboard }: { onViewDashboard: () => void
               ['Total carbon emissions (tCO₂e)', 'Σ (quantity × emission factor) ÷ 1,000'],
               ['Scope & category breakdown', 'grouped by each data type’s scope and category'],
               ['Electricity, water, waste totals', 'Σ monthly readings per block'],
-              ['Intensity', 'kWh ÷ floor area · L ÷ people ÷ days · kg ÷ bed-days'],
+              ['Indices', 'EUI = kWh ÷ GFA · Water Efficiency and Waste Disposal Index formulas to be confirmed'],
               ['Change vs last year', '(this year − last year) ÷ last year'],
               ['Projections to 2035', 'BAU growth rate · y = ax² + bx trend · targets'],
             ].map(([n, r]) => (

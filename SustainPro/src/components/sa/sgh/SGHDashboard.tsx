@@ -2,17 +2,19 @@ import React, { useMemo, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { SGHOverview } from './SGHOverview';
 import { SGHDataUpload } from './SGHDataUpload';
-import { computeOverview, sampleDataset } from './sghData';
+import { SGHBlocks } from './SGHBlocks';
+import { computeBlocks, computeOverview, sampleDataset } from './sghData';
 
-type Tab = 'overview' | 'upload';
+type Tab = 'overview' | 'blocks' | 'upload';
 
 const selectCls = 'h-10 rounded-[10px] border border-[#C9D8D0] bg-white px-2.5 text-sm text-[#10231C]';
 
-/** Sustainability Architect dashboard for SGH: KPI overview plus source-file upload. */
+/** Sustainability Architect dashboard for SGH: overall KPIs, block-level electricity and water, and source-file upload. */
 export function SGHDashboard() {
   const [tab, setTab] = useState<Tab>('overview');
   const data = sampleDataset;
   const overview = useMemo(() => computeOverview(data), [data]);
+  const blocks = useMemo(() => computeBlocks(data), [data]);
 
   return (
     <div className="flex flex-col gap-6 font-sans text-[#10231C]">
@@ -21,18 +23,12 @@ export function SGHDashboard() {
           <span className="text-[13px] font-semibold uppercase tracking-wider text-[#047857]">Singapore General Hospital</span>
           <h1 className="m-0 text-3xl font-bold">Sustainability Dashboard · FY{data.reportingYear}</h1>
           <span className="text-sm text-[#4B5F57]">
-            All blocks · Jan–Dec {data.reportingYear} compared with Jan–Dec {data.reportingYear - 1} · sample data until source files are uploaded
+            {tab === 'blocks' ? 'By block · electricity and water only' : 'SGH overall'} · Jan–Dec {data.reportingYear} compared with Jan–Dec {data.reportingYear - 1} · sample data until source files are uploaded
           </span>
         </div>
-        {tab === 'overview' && (
+        {tab !== 'upload' && (
           <div className="flex flex-wrap items-end gap-3">
             {/* Filters are disabled while the dashboard shows sample data; they act on uploaded data. */}
-            <label className="flex flex-col gap-1 text-xs font-semibold text-[#4B5F57]" title="Available once source files are uploaded">Block
-              <select disabled className={`${selectCls} min-w-[150px] cursor-not-allowed opacity-60`} defaultValue="all">
-                <option value="all">All blocks</option>
-                {data.blocks.map(b => <option key={b.name}>{b.name}</option>)}
-              </select>
-            </label>
             <label className="flex flex-col gap-1 text-xs font-semibold text-[#4B5F57]" title="Available once source files are uploaded">From
               <select disabled className={`${selectCls} cursor-not-allowed opacity-60`} defaultValue="Jan 2025"><option>Jan 2025</option></select>
             </label>
@@ -48,7 +44,7 @@ export function SGHDashboard() {
       </header>
 
       <div role="tablist" aria-label="Dashboard views" className="flex gap-1 border-b border-[#DCE7E1]">
-        {([['overview', 'Overview'], ['upload', 'Data upload']] as const).map(([key, label]) => (
+        {([['overview', 'Overview'], ['blocks', 'Blocks'], ['upload', 'Data upload']] as const).map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}
             className={`-mb-px cursor-pointer border-0 border-b-2 bg-transparent px-3.5 py-2.5 text-sm ${tab === key ? 'border-[#047857] font-semibold text-[#065F46]' : 'border-transparent font-medium text-[#4B5F57] hover:text-[#10231C]'}`}>
             {label}
@@ -56,9 +52,9 @@ export function SGHDashboard() {
         ))}
       </div>
 
-      {tab === 'overview'
-        ? <SGHOverview data={data} overview={overview} />
-        : <SGHDataUpload onViewDashboard={() => setTab('overview')} />}
+      {tab === 'overview' && <SGHOverview data={data} overview={overview} />}
+      {tab === 'blocks' && <SGHBlocks blocks={blocks} year={data.reportingYear} />}
+      {tab === 'upload' && <SGHDataUpload onViewDashboard={() => setTab('overview')} />}
     </div>
   );
 }
