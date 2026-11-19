@@ -1,6 +1,8 @@
 import React, { useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner@2.0.3';
+import { SGHParameters } from './SGHParameters';
+import { emptyParameters, type YearParameters } from './sghData';
 
 /**
  * Upload screen for SGH's source Excel files.
@@ -8,7 +10,8 @@ import { toast } from 'sonner@2.0.3';
  * Files are read in the browser to detect their data type, blocks, months and
  * row count. The column mapping that turns them into KPIs is set up once
  * SGH's real files are received, so "Calculate KPIs" stays disabled until then.
- * Uploaded files are kept in memory only for this session.
+ * Uploaded files are kept in memory only for this session. Building
+ * parameters for the indices are entered by hand below the upload area.
  */
 
 interface RequiredData {
@@ -28,7 +31,6 @@ const REQUIRED: RequiredData[] = [
   { key: 'sf6', name: 'Electrical insulating gas', detail: 'SF₆ top-ups (kg)', keywords: /sf6|sf₆|switchgear|insulating/i },
   { key: 'fire', name: 'Fire suppressant', detail: 'kg discharged or topped up', keywords: /fire|suppress|fm-?200|hfc-?227/i },
   { key: 'wastewater', name: 'Wastewater treatment', detail: 'm³ treated on site', keywords: /waste\s*water|wastewater|effluent|sewage/i },
-  { key: 'profile', name: 'SGH profile', detail: 'GFA (yearly); operational days, visitors and occupants per day (monthly)', keywords: /profile|floor area|gfa|operational days|visitor|occupan|pax/i },
 ];
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
@@ -85,7 +87,13 @@ const badge = (kind: 'ok' | 'warn' | 'err') =>
   `inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
     kind === 'ok' ? 'bg-[#ECFDF5] text-[#047857]' : kind === 'err' ? 'bg-[#FFF7ED] text-[#B45309]' : 'bg-[#F3F7F5] text-[#4B5F57]'}`;
 
-export function SGHDataUpload({ onViewDashboard }: { onViewDashboard: () => void }) {
+interface Props {
+  onViewDashboard: () => void;
+  parameters: Record<number, YearParameters>;
+  onParametersChange: (year: number, p: YearParameters) => void;
+}
+
+export function SGHDataUpload({ onViewDashboard, parameters, onParametersChange }: Props) {
   const [year, setYear] = useState('2025');
   const [files, setFiles] = useState<UploadedFile[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -115,7 +123,6 @@ export function SGHDataUpload({ onViewDashboard }: { onViewDashboard: () => void
     ...files.filter(f => !f.error && !f.typeKey).map(f => ({ level: 'Error' as const, title: `Data type not recognised for ${f.name}`, body: 'Choose the data type in the Uploaded files table.' })),
     ...files.filter(f => !f.error && f.typeKey && f.months.length > 0 && f.months.length < 12).map(f => ({ level: 'Warning' as const, title: `${f.name} covers ${monthRange(f.months)} only`, body: 'Missing months are left empty in the dashboard.' })),
     ...files.filter(f => !f.error && (f.typeKey === 'electricity' || f.typeKey === 'water') && f.blocks.length === 0).map(f => ({ level: 'Warning' as const, title: `No block names found in ${f.name}`, body: 'Electricity and water rows must name the block (e.g. “Block 1”) for the Blocks view.' })),
-    ...(missing.some(m => m.key === 'profile') ? [{ level: 'Error' as const, title: 'SGH profile is missing: GFA, operational days, visitors and occupants per day', body: 'EUI, Water Efficiency Index and Waste Disposal Index can’t be calculated until it is uploaded.' }] : []),
   ];
   const errors = issues.filter(i => i.level === 'Error').length;
 
@@ -232,6 +239,9 @@ export function SGHDataUpload({ onViewDashboard }: { onViewDashboard: () => void
               </div>
             ))}
           </section>
+
+          <SGHParameters year={Number(year)} value={parameters[Number(year)] ?? emptyParameters(Number(year))}
+            onChange={p => onParametersChange(Number(year), p)} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
@@ -253,7 +263,7 @@ export function SGHDataUpload({ onViewDashboard }: { onViewDashboard: () => void
               ['Total carbon emissions (tCO₂e)', 'Σ (quantity × emission factor) ÷ 1,000'],
               ['Scope & category breakdown', 'grouped by each data type’s scope and category'],
               ['Electricity, water, waste totals', 'Σ monthly readings per block'],
-              ['Indices', 'EUI = kWh ÷ GFA · Water Efficiency and Waste Disposal Index formulas to be confirmed'],
+              ['Indices', 'EUI = kWh ÷ GFA · Water and Waste indices = L or kg ÷ person-days (provisional)'],
               ['Change vs last year', '(this year − last year) ÷ last year'],
               ['Projections to 2035', 'BAU growth rate · y = ax² + bx trend · targets'],
             ].map(([n, r]) => (
@@ -275,7 +285,7 @@ export function SGHDataUpload({ onViewDashboard }: { onViewDashboard: () => void
         </div>
       </div>
 
-      <p className={`m-0 text-xs ${muted}`}>Uploaded files are read in your browser and kept for this session only.</p>
+      <p className={`m-0 text-xs ${muted}`}>Uploaded files are read in your browser and kept for this session only. Building parameters are saved in this browser.</p>
     </div>
   );
 }

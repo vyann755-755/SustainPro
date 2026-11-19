@@ -3,7 +3,18 @@ import { Upload } from 'lucide-react';
 import { SGHOverview } from './SGHOverview';
 import { SGHDataUpload } from './SGHDataUpload';
 import { SGHBlocks } from './SGHBlocks';
-import { computeBlocks, computeOverview, sampleDataset } from './sghData';
+import { computeBlocks, computeIndices, computeOverview, sampleDataset, sampleParameters, type YearParameters } from './sghData';
+
+const PARAMS_KEY = 'sgh-building-parameters-v1';
+
+/** Building parameters are kept in this browser until the database is connected; sample values otherwise. */
+function loadParameters(): Record<number, YearParameters> {
+  try {
+    const saved = localStorage.getItem(PARAMS_KEY);
+    if (saved) return { ...sampleParameters, ...JSON.parse(saved) };
+  } catch { /* storage unavailable */ }
+  return sampleParameters;
+}
 
 type Tab = 'overview' | 'blocks' | 'upload';
 
@@ -15,6 +26,13 @@ export function SGHDashboard() {
   const data = sampleDataset;
   const overview = useMemo(() => computeOverview(data), [data]);
   const blocks = useMemo(() => computeBlocks(data), [data]);
+  const [parameters, setParameters] = useState(loadParameters);
+  const indices = useMemo(() => computeIndices(data, parameters), [data, parameters]);
+  const updateParameters = (year: number, p: YearParameters) => setParameters(prev => {
+    const next = { ...prev, [year]: p };
+    try { localStorage.setItem(PARAMS_KEY, JSON.stringify(next)); } catch { /* storage unavailable */ }
+    return next;
+  });
 
   return (
     <div className="flex flex-col gap-6 font-sans text-[#10231C]">
@@ -52,9 +70,9 @@ export function SGHDashboard() {
         ))}
       </div>
 
-      {tab === 'overview' && <SGHOverview data={data} overview={overview} />}
+      {tab === 'overview' && <SGHOverview data={data} overview={overview} indices={indices} />}
       {tab === 'blocks' && <SGHBlocks blocks={blocks} year={data.reportingYear} />}
-      {tab === 'upload' && <SGHDataUpload onViewDashboard={() => setTab('overview')} />}
+      {tab === 'upload' && <SGHDataUpload onViewDashboard={() => setTab('overview')} parameters={parameters} onParametersChange={updateParameters} />}
     </div>
   );
 }

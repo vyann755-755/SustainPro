@@ -2,7 +2,7 @@ import React from 'react';
 import {
   SCOPE_COLORS, LINE_COLORS, YEARS, BAU_WOBBLE, PREDICTED_WOBBLE,
   fmt, fmtK, pctChange, projectPath,
-  type Overview, type ResourceSeries, type SGHDataset,
+  type Overview, type ResourceIndex, type ResourceSeries, type SGHDataset,
 } from './sghData';
 
 /**
@@ -139,7 +139,7 @@ function MonthlyBars({ r }: { r: ResourceSeries }) {
   );
 }
 
-function ResourceCard({ r }: { r: ResourceSeries }) {
+function ResourceCard({ r, index }: { r: ResourceSeries; index: ResourceIndex }) {
   const last = r.history[r.history.length - 1];
   const prev = r.history[r.history.length - 2];
   const p = r.projection;
@@ -154,10 +154,16 @@ function ResourceCard({ r }: { r: ResourceSeries }) {
         </div>
       </div>
       <div className="flex flex-col gap-1">
-        <span className={`text-[13px] ${muted}`}>{r.intensity.label} ({r.intensity.unit})</span>
+        <span className={`text-[13px] ${muted}`} title={index.formula}>
+          {index.label} ({index.unit}){index.provisional && <span className="ml-1.5 rounded-full bg-[#F3F7F5] px-1.5 py-0.5 text-[11px] font-semibold">Provisional formula</span>}
+        </span>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <span className="text-[26px] font-bold" style={{ color: r.color }}>{r.intensity.value}</span>
-          <Change cur={r.intensity.current} prev={r.intensity.previous} />
+          <span className="text-[26px] font-bold" style={{ color: r.color }}>
+            {index.current === null ? '—' : index.current.toLocaleString('en-US', { minimumFractionDigits: index.decimals, maximumFractionDigits: index.decimals })}
+          </span>
+          {index.current !== null && index.previous !== null
+            ? <Change cur={index.current} prev={index.previous} />
+            : <span className={`text-xs ${muted}`}>{index.current === null ? 'Enter parameters in Data upload' : 'No 2024 parameters'}</span>}
         </div>
       </div>
       <div className="flex flex-col gap-1.5">
@@ -181,7 +187,7 @@ function ResourceCard({ r }: { r: ResourceSeries }) {
   );
 }
 
-export function SGHOverview({ data, overview: ov }: { data: SGHDataset; overview: Overview }) {
+export function SGHOverview({ data, overview: ov, indices }: { data: SGHDataset; overview: Overview; indices: Record<ResourceSeries['key'], ResourceIndex> }) {
   const year = data.reportingYear;
   const kpis = [
     { label: 'Total carbon emissions', value: fmt(ov.total), unit: 'tCO₂e', cur: ov.total, prev: ov.previous },
@@ -202,10 +208,13 @@ export function SGHOverview({ data, overview: ov }: { data: SGHDataset; overview
   const t3 = onTrack
     ? `On the current trend, emissions reach ${fmt(ov.predicted2030)} tCO₂e by 2030, meeting the 50% reduction target.`
     : `Emissions are tracking below business as usual, but the current trend reaches ${fmt(ov.predicted2030)} tCO₂e in 2030, above the 50% target of ${fmt(ov.target2030)} tCO₂e.`;
-  const intensityFell = data.resources.filter(r => r.intensity.current < r.intensity.previous).length;
-  const t4 = intensityFell === 3
-    ? 'Use and intensity fell for energy, water and waste compared with 2024, but all three remain above their target trajectories.'
-    : `${intensityFell} of 3 intensity measures improved compared with 2024.`;
+  const compared = Object.values(indices).filter(i => i.current !== null && i.previous !== null);
+  const improved = compared.filter(i => i.current! < i.previous!).length;
+  const t4 = compared.length === 0
+    ? 'Enter GFA, operational days, visitors and occupants in Data upload to calculate EUI, Water Efficiency Index and Waste Disposal Index.'
+    : improved === 3
+      ? 'EUI, Water Efficiency Index and Waste Disposal Index all improved compared with 2024, but use remains above the target trajectories.'
+      : `${improved} of ${compared.length} indices improved compared with 2024.`;
   return (
     <div className="flex flex-col gap-10 text-[#10231C]">
       <Chapter n={1} id="sgh-kpis" title={`How much did we emit in ${year}?`} takeaway={t1}>
@@ -309,7 +318,7 @@ export function SGHOverview({ data, overview: ov }: { data: SGHDataset; overview
           <LegendItem swatch={line(LINE_COLORS.target, true)} label="Target trajectory" />
         </div>
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          {data.resources.map(r => <ResourceCard key={r.key} r={r} />)}
+          {data.resources.map(r => <ResourceCard key={r.key} r={r} index={indices[r.key]} />)}
         </div>
       </Chapter>
 

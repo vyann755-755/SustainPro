@@ -41,7 +41,6 @@ export interface ResourceSeries {
   history: number[];
   monthly: number[];
   chartUnit: string;
-  intensity: { label: string; unit: string; value: string; previous: number; current: number };
   projection: { bau2035: number; predicted2035: number; target2035: number; axisMax: number; ticks: number[] };
 }
 
@@ -88,7 +87,6 @@ export const sampleDataset: SGHDataset = {
       history: [30.1, 30.3, 30.2, 30.3, 28.4],
       monthly: [2.31, 2.18, 2.40, 2.36, 2.47, 2.52, 2.49, 2.55, 2.44, 2.38, 2.27, 2.03],
       chartUnit: 'GWh',
-      intensity: { label: 'Energy intensity', unit: 'kWh/m²', value: '162', previous: 174.6, current: 162 },
       projection: { bau2035: 35.5, predicted2035: 24.8, target2035: 15, axisMax: 40, ticks: [0, 20, 40] },
     },
     {
@@ -96,7 +94,6 @@ export const sampleDataset: SGHDataset = {
       history: [209, 210, 211, 210, 198.7],
       monthly: [16.2, 15.1, 16.8, 16.4, 17.0, 17.3, 17.1, 17.6, 16.9, 16.6, 16.0, 15.7],
       chartUnit: 'thousand m³',
-      intensity: { label: 'Water intensity', unit: 'L/m²', value: '1,137', previous: 1211, current: 1137 },
       projection: { bau2035: 260, predicted2035: 160, target2035: 100, axisMax: 300, ticks: [0, 150, 300] },
     },
     {
@@ -104,12 +101,79 @@ export const sampleDataset: SGHDataset = {
       history: [1340, 1350, 1342, 1340, 1245],
       monthly: [98, 94, 104, 101, 108, 110, 107, 112, 106, 104, 101, 100],
       chartUnit: 'tonnes',
-      intensity: { label: 'Waste intensity', unit: 'kg/bed-day', value: '0.68', previous: 0.73, current: 0.68 },
       projection: { bau2035: 1400, predicted2035: 900, target2035: 620, axisMax: 1600, ticks: [0, 800, 1600] },
     },
   ],
   projection: { bau2035: 17800, predicted2035: 10500, targetReduction2030: 0.5 },
 };
+
+/** Yearly and monthly inputs for the indices (EUI, Water Efficiency Index, Waste Disposal Index). */
+export interface MonthlyParameters {
+  operationalDays: number;
+  visitorsPerDay: number;
+  occupantsPerDay: number;
+}
+
+export interface YearParameters {
+  /** Gross floor area, m² (yearly input). */
+  gfaM2: number;
+  /** Jan–Dec (monthly inputs). */
+  monthly: MonthlyParameters[];
+}
+
+export const daysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+
+export function emptyParameters(year: number): YearParameters {
+  return { gfaM2: 0, monthly: Array.from({ length: 12 }, (_, m) => ({ operationalDays: daysInMonth(year, m), visitorsPerDay: 0, occupantsPerDay: 0 })) };
+}
+
+const sampleYear = (year: number, visitorsPerDay: number, occupantsPerDay: number): YearParameters => ({
+  gfaM2: 175_300,
+  monthly: Array.from({ length: 12 }, (_, m) => ({ operationalDays: daysInMonth(year, m), visitorsPerDay, occupantsPerDay })),
+});
+
+export const sampleParameters: Record<number, YearParameters> = {
+  2024: sampleYear(2024, 9_200, 6_000),
+  2025: sampleYear(2025, 9_000, 6_000),
+};
+
+/** Σ over the months of (average visitors + average occupants per day) × operational days. */
+export const personDays = (p: YearParameters) =>
+  p.monthly.reduce((a, m) => a + (m.visitorsPerDay + m.occupantsPerDay) * m.operationalDays, 0);
+
+/**
+ * Index formulas (hard-coded). EUI follows the BCA definition. The Water
+ * Efficiency and Waste Disposal Index formulas are provisional until SGH
+ * confirms them: both are per person-day of visitors and occupants.
+ */
+export const INDEX_DEFINITIONS = {
+  energy: { label: 'Energy Use Intensity (EUI)', unit: 'kWh/m²/yr', formula: 'Electricity (kWh) ÷ GFA (m²)', provisional: false, decimals: 1 },
+  water: { label: 'Water Efficiency Index', unit: 'L/person-day', formula: 'Water (L) ÷ Σ (visitors + occupants per day) × operational days', provisional: true, decimals: 1 },
+  waste: { label: 'Waste Disposal Index', unit: 'kg/person-day', formula: 'Waste (kg) ÷ Σ (visitors + occupants per day) × operational days', provisional: true, decimals: 3 },
+} as const;
+
+/** Converts each resource's `chartUnit` to the formula's base unit: GWh → kWh, thousand m³ → L, tonnes → kg. */
+const TO_BASE_UNIT = { energy: 1e6, water: 1e6, waste: 1e3 } as const;
+
+function indexValue(key: ResourceSeries['key'], annual: number, p: YearParameters | undefined): number | null {
+  if (!p) return null;
+  const denominator = key === 'energy' ? p.gfaM2 : personDays(p);
+  return denominator > 0 ? (annual * TO_BASE_UNIT[key]) / denominator : null;
+}
+
+/** Index for the reporting year and the year before; null where parameters are missing. */
+export function computeIndices(data: SGHDataset, params: Record<number, YearParameters>) {
+  return Object.fromEntries(data.resources.map(r => {
+    const h = r.history;
+    return [r.key, {
+      ...INDEX_DEFINITIONS[r.key],
+      current: indexValue(r.key, h[h.length - 1], params[data.reportingYear]),
+      previous: indexValue(r.key, h[h.length - 2], params[data.reportingYear - 1]),
+    }];
+  })) as Record<ResourceSeries['key'], ResourceIndex>;
+}
+
+export type ResourceIndex = (typeof INDEX_DEFINITIONS)[ResourceSeries['key']] & { current: number | null; previous: number | null };
 
 export const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 export const fmtK = (n: number) => (Math.abs(n) < 0.5 ? '0' : (n / 1000).toFixed(1) + 'k');
