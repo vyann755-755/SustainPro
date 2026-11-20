@@ -1,104 +1,62 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner@2.0.3';
+import { Download } from 'lucide-react';
 import { SGHParameters } from './SGHParameters';
-import { emptyParameters, type YearParameters } from './sghData';
+import { ASSUMPTIONS, emptyParameters, type YearParameters } from './sghData';
+import {
+  MONTH_LABELS, SHEET_SPECS, SAMPLE_FILE_NAME, TEMPLATE_FILE_NAME,
+  buildSampleWorkbook, buildTemplateWorkbook, crossSheetIssues, mergeFactors, parameterSheetsPresent, parametersFromSheets, parseFile, parseSheet,
+  type ParsedSheet, type SheetIssue, type SheetKind,
+} from './sghPipeline';
+import type { CalculatedData } from './SGHDashboard';
 
 /**
- * Upload screen for SGH's source Excel files.
- *
- * Files are read in the browser to detect their data type, blocks, months and
- * row count. The column mapping that turns them into KPIs is set up once
- * SGH's real files are received, so "Calculate KPIs" stays disabled until then.
- * Uploaded files are kept in memory only for this session. Building
- * parameters for the indices are entered by hand below the upload area.
+ * Upload screen for SGH's source workbook: download the template or sample,
+ * upload, review the checks, enter building parameters, then calculate the
+ * dashboard. Files are read in the browser; results are kept in this browser.
  */
-
-interface RequiredData {
-  key: string;
-  name: string;
-  detail: string;
-  keywords: RegExp;
-}
-
-const REQUIRED: RequiredData[] = [
-  { key: 'electricity', name: 'Electricity', detail: 'kWh by block and month', keywords: /electric|power|kwh/i },
-  { key: 'water', name: 'Water', detail: 'm³ by block and month', keywords: /water(?!\s*treat)|pub|m3|m³/i },
-  { key: 'waste', name: 'Waste', detail: 'Tonnes by stream, block and month', keywords: /waste(?!\s*water)|refuse|recycl/i },
-  { key: 'fuel', name: 'Stationary fuels', detail: 'Diesel, LPG, natural gas', keywords: /diesel|lpg|fuel|gas oil|natural gas|town gas/i },
-  { key: 'refrigerant', name: 'Refrigerant top-ups', detail: 'kg by gas type', keywords: /refrig|r-?410|r-?134|r-?32|hfc/i },
-  { key: 'anaesthetic', name: 'Anaesthetic gases', detail: 'Desflurane, sevoflurane, N₂O', keywords: /anaesth|anesth|desflurane|sevoflurane|nitrous|n2o/i },
-  { key: 'sf6', name: 'Electrical insulating gas', detail: 'SF₆ top-ups (kg)', keywords: /sf6|sf₆|switchgear|insulating/i },
-  { key: 'fire', name: 'Fire suppressant', detail: 'kg discharged or topped up', keywords: /fire|suppress|fm-?200|hfc-?227/i },
-  { key: 'wastewater', name: 'Wastewater treatment', detail: 'm³ treated on site', keywords: /waste\s*water|wastewater|effluent|sewage/i },
-];
-
-const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-interface UploadedFile {
-  id: string;
-  name: string;
-  typeKey: string | null;
-  blocks: string[];
-  months: number[];
-  rows: number;
-  error?: string;
-}
-
-function monthRange(months: number[]): string {
-  if (!months.length) return 'Not found';
-  const sorted = [...months].sort((a, b) => a - b);
-  const contiguous = sorted.every((m, i) => i === 0 || m === sorted[i - 1] + 1);
-  return contiguous ? `${MONTH_LABELS[sorted[0]]}–${MONTH_LABELS[sorted[sorted.length - 1]]}` : `${sorted.length} months`;
-}
-
-async function inspectFile(file: File): Promise<UploadedFile> {
-  const id = `${file.name}-${file.size}-${file.lastModified}`;
-  try {
-    const wb = XLSX.read(await file.arrayBuffer());
-    const blocks = new Set<string>();
-    const months = new Set<number>();
-    let rows = 0;
-    let text = file.name + ' ' + wb.SheetNames.join(' ');
-    wb.SheetNames.forEach(name => {
-      const aoa = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1, blankrows: false });
-      rows += Math.max(aoa.length - 1, 0);
-      aoa.slice(0, 200).forEach(row => row.forEach(cell => {
-        if (typeof cell !== 'string') return;
-        const c = cell.trim();
-        text += ' ' + c;
-        const block = c.match(/\b(?:block|blk)\s*([0-9]+[a-z]?)\b/i);
-        if (block) blocks.add(`Block ${block[1].toUpperCase()}`);
-        const m = MONTHS.indexOf(c.slice(0, 3).toLowerCase());
-        if (m >= 0 && c.length <= 12) months.add(m);
-      }));
-    });
-    const typeKey = REQUIRED.find(r => r.keywords.test(file.name))?.key ?? REQUIRED.find(r => r.keywords.test(text))?.key ?? null;
-    return { id, name: file.name, typeKey, blocks: [...blocks].sort(), months: [...months], rows };
-  } catch {
-    return { id, name: file.name, typeKey: null, blocks: [], months: [], rows: 0, error: 'Could not read this file' };
-  }
-}
 
 const card = 'bg-white border border-[#DCE7E1] rounded-2xl';
 const muted = 'text-[#4B5F57]';
-const badge = (kind: 'ok' | 'warn' | 'err') =>
+const badge = (kind: 'ok' | 'warn' | 'err' | 'info') =>
   `inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${
-    kind === 'ok' ? 'bg-[#ECFDF5] text-[#047857]' : kind === 'err' ? 'bg-[#FFF7ED] text-[#B45309]' : 'bg-[#F3F7F5] text-[#4B5F57]'}`;
+    kind === 'ok' ? 'bg-[#ECFDF5] text-[#047857]' : kind === 'err' ? 'bg-[#FFF7ED] text-[#B45309]' : kind === 'warn' ? 'bg-[#FEF9C3] text-[#854D0E]' : 'bg-[#F3F7F5] text-[#4B5F57]'}`;
+const btn = 'inline-flex min-h-10 cursor-pointer items-center justify-center gap-2 rounded-[10px] px-4 text-sm font-semibold';
 
 interface Props {
-  onViewDashboard: () => void;
+  reportingYear: number;
+  usingSample: boolean;
   parameters: Record<number, YearParameters>;
-  onParametersChange: (year: number, p: YearParameters) => void;
+  onParametersChange: (changes: Record<number, YearParameters>) => void;
+  onCalculate: (data: CalculatedData) => void;
+  onReset: () => void;
 }
 
-export function SGHDataUpload({ onViewDashboard, parameters, onParametersChange }: Props) {
-  const [year, setYear] = useState('2025');
-  const [files, setFiles] = useState<UploadedFile[]>([]);
+const FORMULAS: [string, string][] = [
+  ['Emissions per row (tCO₂e)', 'quantity × emission factor (kgCO₂e per unit) ÷ 1,000'],
+  ['Scopes', 'Scope 1 = Fuel + Refrigerants & Gases · Scope 2 = Electricity · Scope 3 = Waste + Water'],
+  ['Yearly and block totals', 'Σ of the monthly rows in the year (and block)'],
+  ['Change vs last year', '(this year − last year) ÷ last year'],
+  ['EUI (kWh/m²/yr)', 'electricity kWh ÷ GFA'],
+  ['Water Efficiency Index (L/person-day)', 'water m³ × 1,000 ÷ Σ (visitors + occupants per day) × operational days · provisional'],
+  ['Waste Disposal Index (kg/person-day)', 'waste kg ÷ Σ (visitors + occupants per day) × operational days · provisional'],
+  ['Projections', `BAU = latest × (1 + ${ASSUMPTIONS.bauGrowth * 100}%)ⁿ · predicted = least-squares trend of the history`],
+  ['Targets', `emissions −${ASSUMPTIONS.emissionsReduction2030 * 100}% vs first year by 2030, net zero ${ASSUMPTIONS.horizon} · resources −${ASSUMPTIONS.resourceReduction2035 * 100}% by ${ASSUMPTIONS.horizon}`],
+];
+
+function monthRange(months: number[]) {
+  if (!months.length) return '—';
+  if (months.length === 12) return 'Jan–Dec';
+  const contiguous = months.every((m, i) => i === 0 || m === months[i - 1] + 1);
+  return contiguous ? `${MONTH_LABELS[months[0]]}–${MONTH_LABELS[months[months.length - 1]]}` : `${months.length} months`;
+}
+
+export function SGHDataUpload({ reportingYear, usingSample, parameters, onParametersChange, onCalculate, onReset }: Props) {
+  const [sheets, setSheets] = useState<ParsedSheet[]>([]);
   const [dragging, setDragging] = useState(false);
   const [reading, setReading] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [paramYear, setParamYear] = useState(reportingYear);
 
   const addFiles = async (list: FileList | null) => {
     if (!list || !list.length) return;
@@ -106,32 +64,53 @@ export function SGHDataUpload({ onViewDashboard, parameters, onParametersChange 
     if (excel.length < list.length) toast.error('Only .xlsx and .xls files can be uploaded');
     if (!excel.length) return;
     setReading(true);
-    const inspected = await Promise.all(excel.map(inspectFile));
-    setFiles(prev => [...prev.filter(p => !inspected.some(i => i.id === p.id)), ...inspected]);
-    setReading(false);
-    toast.success(`${inspected.length} file${inspected.length > 1 ? 's' : ''} read`);
+    try {
+      const parsed = (await Promise.all(excel.map(f => parseFile(f).catch(() => [{ ...parseSheet(f.name, '(file)', []), issues: [{ level: 'Error' as const, text: 'Could not read this file. Check it opens in Excel.' }] }])))).flat();
+      setSheets(prev => [...prev.filter(p => !excel.some(f => f.name === p.file)), ...parsed]);
+      const used = parsed.filter(s => s.kind && !s.ignored).length;
+      toast.success(`${excel.length} file${excel.length > 1 ? 's' : ''} read · ${used} data sheet${used === 1 ? '' : 's'} found`);
+    } finally {
+      setReading(false);
+    }
   };
 
-  const setType = (id: string, typeKey: string) =>
-    setFiles(prev => prev.map(f => (f.id === id ? { ...f, typeKey: typeKey || null } : f)));
-  const remove = (id: string) => setFiles(prev => prev.filter(f => f.id !== id));
+  const setKind = (i: number, kind: string) =>
+    setSheets(prev => prev.map((s, j) => (j === i ? parseSheet(s.file, s.sheet, s.aoa, (kind || null) as SheetKind | null) : s)));
+  const removeFile = (file: string) => setSheets(prev => prev.filter(s => s.file !== file));
 
-  const received = new Set(files.filter(f => f.typeKey && !f.error).map(f => f.typeKey));
-  const missing = REQUIRED.filter(r => !received.has(r.key));
-  const issues = [
-    ...files.filter(f => f.error).map(f => ({ level: 'Error' as const, title: `${f.name}: ${f.error}`, body: 'Check the file opens in Excel, then upload it again.' })),
-    ...files.filter(f => !f.error && !f.typeKey).map(f => ({ level: 'Error' as const, title: `Data type not recognised for ${f.name}`, body: 'Choose the data type in the Uploaded files table.' })),
-    ...files.filter(f => !f.error && f.typeKey && f.months.length > 0 && f.months.length < 12).map(f => ({ level: 'Warning' as const, title: `${f.name} covers ${monthRange(f.months)} only`, body: 'Missing months are left empty in the dashboard.' })),
-    ...files.filter(f => !f.error && (f.typeKey === 'electricity' || f.typeKey === 'water') && f.blocks.length === 0).map(f => ({ level: 'Warning' as const, title: `No block names found in ${f.name}`, body: 'Electricity and water rows must name the block (e.g. “Block 1”) for the Blocks view.' })),
-  ];
+  const factors = mergeFactors(sheets.flatMap(s => s.factors));
+  const issues: (SheetIssue & { where?: string })[] = sheets.length ? [
+    ...sheets.flatMap(s => s.issues.map(i => ({ ...i, where: `${s.file} › ${s.sheet}` }))),
+    ...crossSheetIssues(sheets, factors),
+  ] : [];
   const errors = issues.filter(i => i.level === 'Error').length;
+  const activity = sheets.flatMap(s => (s.kind && !s.ignored ? s.activity : []));
+  const years = [...new Set(activity.map(a => a.year))].sort();
+  const canCalculate = sheets.length > 0 && errors === 0;
+
+  const received = (kind: SheetKind) => sheets.filter(s => s.kind === kind && !s.ignored && s.rows > 0).reduce((a, s) => a + s.rows, 0);
+
+  const calculate = () => {
+    const paramChanges = parametersFromSheets(sheets, parameters, emptyParameters);
+    if (Object.keys(paramChanges).length) onParametersChange(paramChanges);
+    onCalculate({ sample: false, files: [...new Set(sheets.map(s => s.file))], calculatedAt: new Date().toISOString(), activity, factors });
+    toast.success(`Dashboard calculated from ${activity.length.toLocaleString('en-US')} rows`);
+  };
+
+  const download = (wb: XLSX.WorkBook, name: string) => {
+    XLSX.writeFile(wb, name);
+    toast.success(`${name} downloaded`);
+  };
 
   const steps = [
-    { n: 1, title: 'Upload files', sub: `${received.size} of ${REQUIRED.length} received`, state: files.length ? 'done' : 'active' },
-    { n: 2, title: 'Check data', sub: files.length ? (issues.length ? `${issues.length} issue${issues.length > 1 ? 's' : ''} to resolve` : 'No issues') : 'Waiting for files', state: files.length ? (issues.length ? 'warn' : 'done') : 'todo' },
-    { n: 3, title: 'Calculate KPIs', sub: 'Available once file mapping is set up', state: 'todo' },
-    { n: 4, title: 'Publish to dashboard', sub: 'Not started', state: 'todo' },
+    { n: 1, title: 'Get the workbook', sub: 'Template or sample data', state: 'done' },
+    { n: 2, title: 'Upload', sub: sheets.length ? `${new Set(sheets.map(s => s.file)).size} file(s) read` : 'Waiting for files', state: sheets.length ? 'done' : 'active' },
+    { n: 3, title: 'Check data', sub: !sheets.length ? '—' : errors ? `${errors} error${errors > 1 ? 's' : ''} to fix` : issues.length ? `${issues.length} warning${issues.length > 1 ? 's' : ''}` : 'No issues', state: !sheets.length ? 'todo' : errors ? 'warn' : 'done' },
+    { n: 4, title: 'Calculate dashboard', sub: canCalculate ? 'Ready' : 'After the checks pass', state: canCalculate ? 'active' : 'todo' },
   ];
+
+  const files = [...new Set(sheets.map(s => s.file))];
+  const paramYears = [...new Set([...years, ...Object.keys(parameters).map(Number), reportingYear])].sort((a, b) => b - a);
 
   return (
     <div className="flex flex-col gap-6 text-[#10231C]">
@@ -150,15 +129,24 @@ export function SGHDataUpload({ onViewDashboard, parameters, onParametersChange 
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
-          <section aria-labelledby="sgh-up-h" className={`${card} flex flex-col gap-4 px-6 py-5`}>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <h2 id="sgh-up-h" className="m-0 text-lg font-bold">Upload source files</h2>
-              <label className={`flex flex-col gap-1 text-xs font-semibold ${muted}`}>Reporting year
-                <select value={year} onChange={e => setYear(e.target.value)} className="h-10 min-w-[120px] rounded-[10px] border border-[#C9D8D0] bg-white px-2.5 text-sm text-[#10231C]">
-                  {['2025', '2024', '2023', '2022', '2021'].map(y => <option key={y} value={y}>FY{y}</option>)}
-                </select>
-              </label>
+          <section aria-labelledby="sgh-get-h" className={`${card} flex flex-col gap-3 px-6 py-5`}>
+            <h2 id="sgh-get-h" className="m-0 text-lg font-bold">1 · Get the workbook</h2>
+            <p className={`m-0 text-sm ${muted}`}>
+              One Excel workbook with one sheet per data type and one row per month (and per block for electricity and water).
+              The sample has full monthly data for FY2021–FY2025; it is the data the dashboard shows until you upload your own. Upload it unchanged to try the whole flow.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <button type="button" onClick={() => download(buildSampleWorkbook(), SAMPLE_FILE_NAME)} className={`${btn} border-0 bg-[#047857] text-white hover:bg-[#065F46]`}>
+                <Download className="h-4 w-4" aria-hidden="true" /> Download sample data (FY2021–2025)
+              </button>
+              <button type="button" onClick={() => download(buildTemplateWorkbook(), TEMPLATE_FILE_NAME)} className={`${btn} border border-[#C9D8D0] bg-white text-[#065F46] hover:bg-[#F3F7F5]`}>
+                <Download className="h-4 w-4" aria-hidden="true" /> Download blank template
+              </button>
             </div>
+          </section>
+
+          <section aria-labelledby="sgh-up-h" className={`${card} flex flex-col gap-4 px-6 py-5`}>
+            <h2 id="sgh-up-h" className="m-0 text-lg font-bold">2 · Upload</h2>
             <label
               onDragOver={e => { e.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
@@ -167,125 +155,151 @@ export function SGHDataUpload({ onViewDashboard, parameters, onParametersChange 
             >
               <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#047857" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 16V4" /><path d="M7 9l5-5 5 5" /><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" /></svg>
               <span className="text-[15px] font-semibold">{reading ? 'Reading files…' : <>Drop Excel files here, or <span className="text-[#047857] underline">browse</span></>}</span>
-              <span className={`text-[13px] ${muted}`}>.xlsx or .xls · several files at once · data type, blocks and months are detected from each file</span>
-              <input ref={inputRef} type="file" multiple accept=".xlsx,.xls" className="sr-only"
-                onChange={e => { addFiles(e.target.files); e.target.value = ''; }} />
+              <span className={`text-[13px] ${muted}`}>The source workbook, and optionally a CWS Data Rows file (e.g. Data_Rows_Template.xlsx) with updated emission factors</span>
+              <input type="file" multiple accept=".xlsx,.xls" className="sr-only" onChange={e => { addFiles(e.target.files); e.target.value = ''; }} />
             </label>
           </section>
 
-          <section aria-labelledby="sgh-files-h" className={`${card} flex flex-col gap-3 px-6 py-5`}>
-            <h2 id="sgh-files-h" className="m-0 text-lg font-bold">Uploaded files · FY{year}</h2>
-            {files.length === 0 ? (
-              <p className={`m-0 py-6 text-center text-sm ${muted}`}>No files uploaded yet.</p>
+          <section aria-labelledby="sgh-check-h" className={`${card} flex flex-col gap-3 px-6 py-5`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 id="sgh-check-h" className="m-0 text-lg font-bold">3 · Check the data</h2>
+              {sheets.length > 0 && <span className={badge(errors ? 'err' : issues.length ? 'warn' : 'ok')}>{errors ? `${errors} error${errors > 1 ? 's' : ''}` : issues.length ? `${issues.length} warning${issues.length > 1 ? 's' : ''}` : 'All checks passed'}</span>}
+            </div>
+            {sheets.length === 0 ? (
+              <p className={`m-0 py-4 text-center text-sm ${muted}`}>Each sheet’s data type, rows, years and blocks appear here after upload.</p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] border-collapse text-[13px]">
-                  <thead>
-                    <tr className={`border-b border-[#DCE7E1] text-left ${muted}`}>
-                      <th scope="col" className="px-2 py-2.5 font-semibold">File</th>
-                      <th scope="col" className="px-2 py-2.5 font-semibold">Data type</th>
-                      <th scope="col" className="px-2 py-2.5 font-semibold">Blocks</th>
-                      <th scope="col" className="px-2 py-2.5 font-semibold">Months</th>
-                      <th scope="col" className="px-2 py-2.5 text-right font-semibold">Rows</th>
-                      <th scope="col" className="px-2 py-2.5 font-semibold">Status</th>
-                      <th scope="col" className="px-2 py-2.5"><span className="sr-only">Actions</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {files.map(f => {
-                      const ok = !f.error && f.typeKey;
-                      return (
-                        <tr key={f.id} className="border-b border-[#EEF3F0]">
-                          <td className="px-2 py-3 font-semibold">{f.name}</td>
-                          <td className="px-2 py-3">
-                            <select aria-label={`Data type for ${f.name}`} value={f.typeKey ?? ''} onChange={e => setType(f.id, e.target.value)}
-                              className="h-8 rounded-lg border border-[#C9D8D0] bg-white px-2 text-[13px]">
-                              <option value="">Choose…</option>
-                              {REQUIRED.map(r => <option key={r.key} value={r.key}>{r.name}</option>)}
-                            </select>
-                          </td>
-                          <td className="px-2 py-3">{f.blocks.length ? f.blocks.join(', ') : '—'}</td>
-                          <td className="px-2 py-3">{monthRange(f.months)}</td>
-                          <td className="px-2 py-3 text-right">{f.rows.toLocaleString('en-US')}</td>
-                          <td className="px-2 py-3"><span className={badge(f.error ? 'err' : ok ? 'ok' : 'err')}>{f.error ? 'Unreadable' : ok ? 'Read' : 'Needs data type'}</span></td>
-                          <td className="whitespace-nowrap px-2 py-3 text-right">
-                            <button type="button" onClick={() => remove(f.id)} className="min-h-8 cursor-pointer rounded-lg border border-[#C9D8D0] bg-white px-2.5 py-1.5 text-xs text-[#10231C] hover:bg-[#F3F7F5]">Remove</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {files.map(file => (
+                  <div key={file} className="flex flex-col gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-semibold">{file}</span>
+                      <button type="button" onClick={() => removeFile(file)} className="min-h-8 cursor-pointer rounded-lg border border-[#C9D8D0] bg-white px-2.5 py-1 text-xs text-[#10231C] hover:bg-[#F3F7F5]">Remove file</button>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[640px] border-collapse text-[13px]">
+                        <thead>
+                          <tr className={`border-b border-[#DCE7E1] text-left ${muted}`}>
+                            <th scope="col" className="px-2 py-2 font-semibold">Sheet</th>
+                            <th scope="col" className="px-2 py-2 font-semibold">Data type</th>
+                            <th scope="col" className="px-2 py-2 text-right font-semibold">Rows</th>
+                            <th scope="col" className="px-2 py-2 font-semibold">Years</th>
+                            <th scope="col" className="px-2 py-2 font-semibold">Latest year</th>
+                            <th scope="col" className="px-2 py-2 font-semibold">Blocks / items</th>
+                            <th scope="col" className="px-2 py-2 font-semibold">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sheets.map((s, i) => s.file !== file ? null : (
+                            <tr key={s.sheet} className="border-b border-[#EEF3F0] align-top">
+                              <td className="px-2 py-2.5 font-semibold">{s.sheet}</td>
+                              <td className="px-2 py-2.5">
+                                <select aria-label={`Data type for sheet ${s.sheet}`} value={s.kind ?? ''} onChange={e => setKind(i, e.target.value)}
+                                  className="h-8 max-w-[190px] rounded-lg border border-[#C9D8D0] bg-white px-2 text-[13px]">
+                                  <option value="">Not used</option>
+                                  {SHEET_SPECS.map(sp => <option key={sp.kind} value={sp.kind}>{sp.sheet}</option>)}
+                                </select>
+                              </td>
+                              <td className="px-2 py-2.5 text-right">{s.kind ? s.rows.toLocaleString('en-US') : '—'}</td>
+                              <td className="px-2 py-2.5">{s.years.length ? `${s.years[0]}–${s.years[s.years.length - 1]}` : '—'}</td>
+                              <td className="px-2 py-2.5">{s.years.length && s.kind !== 'gfa' ? monthRange(s.latestMonths) : '—'}</td>
+                              <td className="px-2 py-2.5">{s.blocks.length ? s.blocks.join(', ') : s.items.length ? s.items.join(', ') : s.factors.length ? `${s.factors.length} factors` : '—'}</td>
+                              <td className="px-2 py-2.5">
+                                <span className={badge(!s.kind ? 'info' : s.issues.some(x => x.level === 'Error') ? 'err' : s.issues.length ? 'warn' : 'ok')}>
+                                  {!s.kind ? (s.ignored ? 'Not a data sheet' : 'Not used') : s.issues.some(x => x.level === 'Error') ? 'Error' : s.issues.length ? 'Check warnings' : 'OK'}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex flex-col gap-2">
+                  {issues.length === 0
+                    ? <p className={`m-0 text-sm ${muted}`}>All checks passed.</p>
+                    : issues.map((i, idx) => (
+                      <div key={idx} className={`flex items-start gap-3.5 rounded-xl p-3 ${i.level === 'Error' ? 'bg-[#FFF7ED]' : 'bg-[#FEFCE8]'}`}>
+                        <span className={`w-16 flex-none pt-0.5 text-xs font-bold ${i.level === 'Error' ? 'text-[#B45309]' : 'text-[#854D0E]'}`}>{i.level}</span>
+                        <div className="flex min-w-0 flex-col gap-0.5">
+                          <span className="text-[13px]">{i.text}</span>
+                          {i.where && <span className={`text-xs ${muted}`}>{i.where}</span>}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </>
             )}
           </section>
 
-          <section aria-labelledby="sgh-issues-h" className={`${card} flex flex-col gap-3 px-6 py-5`}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 id="sgh-issues-h" className="m-0 text-lg font-bold">Issues to resolve</h2>
-              {files.length > 0 && <span className={badge(issues.length ? 'err' : 'ok')}>{issues.length ? `${issues.length} open` : 'None'}</span>}
-            </div>
-            {files.length === 0 ? (
-              <p className={`m-0 text-sm ${muted}`}>Issues appear here after files are uploaded.</p>
-            ) : issues.length === 0 ? (
-              <p className={`m-0 text-sm ${muted}`}>All uploaded files look complete.</p>
-            ) : issues.map((i, idx) => (
-              <div key={idx} className={`flex items-start gap-3.5 rounded-xl p-3.5 ${i.level === 'Error' ? 'bg-[#FFF7ED]' : 'bg-[#F3F7F5]'}`}>
-                <span className={`pt-0.5 text-xs font-bold ${i.level === 'Error' ? 'text-[#B45309]' : muted}`}>{i.level}</span>
-                <div className="flex min-w-0 flex-col gap-1">
-                  <span className="text-sm font-semibold">{i.title}</span>
-                  <span className={`text-[13px] ${muted}`}>{i.body}</span>
-                </div>
-              </div>
-            ))}
-          </section>
-
-          <SGHParameters year={Number(year)} value={parameters[Number(year)] ?? emptyParameters(Number(year))}
-            onChange={p => onParametersChange(Number(year), p)} />
+          <div className="flex flex-col gap-2">
+            <label className={`flex flex-wrap items-center gap-2 text-xs font-semibold ${muted}`}>Building parameters for
+              <select value={paramYear} onChange={e => setParamYear(Number(e.target.value))} className="h-9 rounded-lg border border-[#C9D8D0] bg-white px-2 text-sm text-[#10231C]">
+                {paramYears.map(y => <option key={y} value={y}>FY{y}</option>)}
+              </select>
+              {parameterSheetsPresent(sheets) && <span className="font-normal">· the uploaded GFA / Occupancy sheets replace these values when you calculate</span>}
+            </label>
+            <SGHParameters year={paramYear} value={parameters[paramYear] ?? emptyParameters(paramYear)}
+              onChange={p => onParametersChange({ [paramYear]: p })} />
+          </div>
         </div>
 
         <div className="flex min-w-0 flex-col gap-4">
+          <section aria-labelledby="sgh-calc-h" className={`${card} flex flex-col gap-3 p-5`}>
+            <h2 id="sgh-calc-h" className="m-0 text-lg font-bold">4 · Calculate dashboard</h2>
+            {sheets.length > 0 && (
+              <p className={`m-0 text-[13px] ${muted}`}>
+                {activity.length.toLocaleString('en-US')} activity rows{years.length ? ` · FY${years[0]}–FY${years[years.length - 1]}` : ''} · {factors.length} emission factors
+              </p>
+            )}
+            <button type="button" disabled={!canCalculate} onClick={calculate}
+              className={`h-11 rounded-[10px] border-0 text-sm font-semibold text-white ${canCalculate ? 'cursor-pointer bg-[#047857] hover:bg-[#065F46]' : 'cursor-not-allowed bg-[#9DBFAE]'}`}>
+              Calculate KPIs and view dashboard
+            </button>
+            <span className={`text-center text-xs ${muted}`}>
+              {!sheets.length ? 'Upload the workbook first.' : errors ? `Fix ${errors} error${errors > 1 ? 's' : ''} first.` : 'Warnings don’t block the calculation.'}
+            </span>
+            {!usingSample && (
+              <button type="button" onClick={() => { onReset(); setSheets([]); toast.success('Dashboard reset to sample data'); }}
+                className="min-h-10 cursor-pointer rounded-[10px] border border-[#C9D8D0] bg-white text-sm font-semibold text-[#065F46] hover:bg-[#F3F7F5]">
+                Reset dashboard to sample data
+              </button>
+            )}
+          </section>
+
           <section aria-labelledby="sgh-req-h" className={`${card} flex flex-col gap-3 p-5`}>
-            <h2 id="sgh-req-h" className="m-0 text-lg font-bold">Required data · FY{year}</h2>
+            <h2 id="sgh-req-h" className="m-0 text-lg font-bold">Workbook sheets</h2>
             <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
-              {REQUIRED.map(r => (
-                <li key={r.key} className="flex items-center justify-between gap-2.5 border-b border-[#EEF3F0] py-2 text-[13px]">
-                  <span className="flex flex-col"><span className="font-semibold">{r.name}</span><span className={`text-xs ${muted}`}>{r.detail}</span></span>
-                  <span className={badge(received.has(r.key) ? 'ok' : 'err')}>{received.has(r.key) ? 'Uploaded' : 'Missing'}</span>
-                </li>
-              ))}
+              {SHEET_SPECS.map(s => {
+                const rows = received(s.kind);
+                const fallback = s.kind === 'factors' ? 'Built-in' : s.kind === 'gfa' || s.kind === 'occupancy' ? 'Form below' : 'Missing';
+                return (
+                  <li key={s.kind} className="flex items-start justify-between gap-2.5 border-b border-[#EEF3F0] py-2 text-[13px]">
+                    <span className="flex min-w-0 flex-col">
+                      <span className="font-semibold">{s.sheet}{!s.required && <span className={`font-normal ${muted}`}> · optional</span>}</span>
+                      <span className={`text-xs ${muted}`}>{s.description}</span>
+                      <code className="mt-0.5 whitespace-normal font-mono text-[11px] text-[#065F46]">{(s.kind === 'factors' ? s.columns.slice(0, 6) : s.columns).join(' | ')}{s.kind === 'factors' ? ' | …' : ''}</code>
+                    </span>
+                    <span className={badge(rows ? 'ok' : s.required ? 'err' : 'info')}>{rows ? `${rows.toLocaleString('en-US')} rows` : sheets.length ? fallback : s.required ? 'Required' : 'Optional'}</span>
+                  </li>
+                );
+              })}
             </ul>
           </section>
 
           <section aria-labelledby="sgh-kpi-h" className={`${card} flex flex-col gap-3 p-5`}>
-            <h2 id="sgh-kpi-h" className="m-0 text-lg font-bold">KPIs that will be calculated</h2>
-            {[
-              ['Total carbon emissions (tCO₂e)', 'Σ (quantity × emission factor) ÷ 1,000'],
-              ['Scope & category breakdown', 'grouped by each data type’s scope and category'],
-              ['Electricity, water, waste totals', 'Σ monthly readings per block'],
-              ['Indices', 'EUI = kWh ÷ GFA · Water and Waste indices = L or kg ÷ person-days (provisional)'],
-              ['Change vs last year', '(this year − last year) ÷ last year'],
-              ['Projections to 2035', 'BAU growth rate · y = ax² + bx trend · targets'],
-            ].map(([n, r]) => (
+            <h2 id="sgh-kpi-h" className="m-0 text-lg font-bold">How the KPIs are calculated</h2>
+            {FORMULAS.map(([n, r]) => (
               <div key={n} className="flex flex-col gap-1 rounded-[10px] bg-[#F6FAF8] px-3 py-2.5">
                 <span className="text-[13px] font-semibold">{n}</span>
                 <code className="whitespace-normal font-mono text-xs text-[#065F46]">{r}</code>
               </div>
             ))}
-            <button type="button" disabled className="mt-1 h-11 cursor-not-allowed rounded-[10px] border-0 bg-[#9DBFAE] text-sm font-semibold text-white">
-              Calculate KPIs
-            </button>
-            <span className={`text-center text-xs ${muted}`}>
-              Available once the column mapping for SGH’s source files is set up{errors ? ` · ${errors} error${errors > 1 ? 's' : ''} to resolve first` : ''}.
-            </span>
-            <button type="button" onClick={onViewDashboard} className="min-h-10 cursor-pointer rounded-[10px] border border-[#C9D8D0] bg-white text-sm font-semibold text-[#065F46] hover:bg-[#F3F7F5]">
-              View dashboard (sample data)
-            </button>
           </section>
         </div>
       </div>
 
-      <p className={`m-0 text-xs ${muted}`}>Uploaded files are read in your browser and kept for this session only. Building parameters are saved in this browser.</p>
+      <p className={`m-0 text-xs ${muted}`}>Files are read in your browser. The calculated dashboard and building parameters are kept in this browser until the database is connected.</p>
     </div>
   );
 }

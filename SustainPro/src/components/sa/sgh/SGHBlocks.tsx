@@ -1,22 +1,20 @@
 import React from 'react';
-import { SCOPE_COLORS, EMISSION_FACTORS, fmt, type BlockRow } from './sghData';
+import { SCOPE_COLORS, fmt, niceScale, type BlockRow, type SGHDataset } from './sghData';
 import { Chapter, LegendItem, box, card, muted } from './SGHOverview';
 
 /**
  * Block-level view from page 4 of the SGH mock-up. Only electricity (Scope 2)
  * and water (Scope 3) are metered per block, so the ranking covers those two only.
  */
-export function SGHBlocks({ blocks, year }: { blocks: BlockRow[]; year: number }) {
+export function SGHBlocks({ blocks, year, factors }: { blocks: BlockRow[]; year: number; factors: SGHDataset['factors'] }) {
   const top = blocks[0];
+  if (!top) return <p className={`m-0 text-sm ${muted}`}>No block-level electricity or water data for {year}. Upload the Electricity and Water sheets with a Block column.</p>;
   const totalAll = blocks.reduce((a, b) => a + b.total, 0);
   const waterLed = blocks.filter(b => b.water > b.electricity).length;
   const takeaway = `${top.name} has the highest utility emissions at ${fmt(top.total)} tCO₂e, ${((top.total / totalAll) * 100).toFixed(0)}% of the block total` +
     (waterLed ? `; water outweighs electricity in ${waterLed} of ${blocks.length} blocks.` : '.');
 
-  // Axis rounded up to the next multiple of 25, matching the mock-up's 0 / 25 / 50 / 75 scale.
-  const step = 25;
-  const max = Math.ceil((top.total * 1.15) / step) * step;
-  const ticks = Array.from({ length: max / step + 1 }, (_, i) => i * step);
+  const { max, ticks } = niceScale(top.total * 1.1);
   const pct = (v: number) => `${(v / max) * 100}%`;
 
   return (
@@ -58,7 +56,7 @@ export function SGHBlocks({ blocks, year }: { blocks: BlockRow[]; year: number }
                 <span />
                 <div className={`relative h-4 text-xs ${muted}`}>
                   {ticks.map(t => (
-                    <span key={t} className="absolute -translate-x-1/2" style={{ left: pct(t) }}>{t}</span>
+                    <span key={t} className="absolute -translate-x-1/2" style={{ left: pct(t) }}>{t >= 1000 ? `${t / 1000}k` : t}</span>
                   ))}
                 </div>
               </div>
@@ -68,8 +66,8 @@ export function SGHBlocks({ blocks, year }: { blocks: BlockRow[]; year: number }
       </Chapter>
 
       <p className={`m-0 text-xs ${muted}`}>
-        Sample block figures from the SGH mock-up. Emissions = consumption × SGH emission factors: electricity {EMISSION_FACTORS.electricity.kgCO2ePerUnit} kgCO₂e/kWh ({EMISSION_FACTORS.electricity.reference}),
-        water {EMISSION_FACTORS.water.kgCO2ePerUnit} kgCO₂e/m³ ({EMISSION_FACTORS.water.reference}).
+        Emissions = consumption × emission factor: electricity {factors.electricity?.value ?? '—'} kgCO₂e/kWh ({factors.electricity?.reference || 'no factor'}),
+        water {factors.water?.value ?? '—'} kgCO₂e/m³ ({factors.water?.reference || 'no factor'}). Block totals add up to the SGH electricity and water totals.
       </p>
     </div>
   );

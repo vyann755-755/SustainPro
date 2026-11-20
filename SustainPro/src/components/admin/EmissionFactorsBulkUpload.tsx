@@ -556,12 +556,18 @@ export function EmissionFactorsBulkUpload({ onBack }: BulkUploadPageProps) {
       const value = stripExamplePrefix(rawValue);
       const impactCategory = stripExamplePrefix(rawImpactCategory);
       const impactUnit = stripExamplePrefix(rawImpactUnit);
-      const functionalUnit = stripExamplePrefix(rawFunctionalUnit);
+      // Units exported as `functional_units: [{"name":"kWh"}]` are reduced to the unit name.
+      const rawUnit = stripExamplePrefix(rawFunctionalUnit);
+      const functionalUnit = rawUnit.match(/"name"\s*:\s*"([^"]+)"/)?.[1] ?? rawUnit;
       const referenceName = stripExamplePrefix(rawReferenceName);
       const referenceURL = stripExamplePrefix(rawReferenceURL);
       const country = stripExamplePrefix(rawCountry);
       const region = stripExamplePrefix(rawRegion);
-      const referenceDate = stripExamplePrefix(rawReferenceDate);
+      // Excel stores typed dates as serial numbers (e.g. 46037); convert them to YYYY-MM-DD.
+      const dateCode = typeof rawReferenceDate === 'number' ? XLSX.SSF.parse_date_code(rawReferenceDate) : null;
+      const referenceDate = dateCode
+        ? `${dateCode.y}-${String(dateCode.m).padStart(2, '0')}-${String(dateCode.d).padStart(2, '0')}`
+        : stripExamplePrefix(rawReferenceDate);
       
       const errors: ValidationError[] = [];
       const rowNumber = index + 2;
